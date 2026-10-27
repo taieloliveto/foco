@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Foco</title>
+<meta name="description" content="Capturá lo que se te ocurre, convertilo en acciones y no dependas de tu memoria.">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#F7F6FD" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1020" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Foco">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main id="v" aria-live="polite">
+  <p class="boot">Cargando…<br><small>Si esta pantalla no cambia, falta algún archivo de la app (<b>app.js</b>, <b>merge.js</b> o <b>gcal.js</b>). Revisá que se hayan subido todos los archivos de la carpeta <b>web</b>.</small></p>
+</main>
+
+<div id="nv" hidden>
+  <nav class="pill" aria-label="Principal">
+    <button class="nb" data-a="tab" data-t="today">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
+      <span>Hoy</span><i id="nb-in" class="badge" aria-hidden="true" hidden></i>
+    </button>
+    <button class="nb" data-a="tab" data-t="tasks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/></svg>
+      <span>Tareas</span>
+    </button>
+    <button class="nb" data-a="tab" data-t="lists">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>
+      <span>Listas</span>
+    </button>
+    <button class="nb" data-a="tab" data-t="agenda">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <span>Agenda</span>
+    </button>
+  </nav>
+  <button class="fab" data-a="capture" aria-label="Capturar una idea">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+</div>
+
+<div id="rm-root"></div>
+<div id="ov-root"></div>
+<div id="t-root"></div>
+<noscript><p style="padding:24px">Foco necesita JavaScript para funcionar.</p></noscript>
+<script src="config.js"></script>
+<script src="merge.js"></script>
+<script src="gcal.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

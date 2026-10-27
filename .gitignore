@@ -1,0 +1,5 @@
+.shots/
+node_modules/
+server/node_modules/
+server/.secrets-set
+server/.wrangler/

@@ -1,0 +1,21 @@
+{
+  "name": "Foco",
+  "short_name": "Foco",
+  "description": "Capturá lo que se te ocurre, convertilo en acciones y no dependas de tu memoria.",
+  "lang": "es-AR",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F1020",
+  "theme_color": "#5B4DDB",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Capturar", "short_name": "Capturar", "url": "/?capture=1", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

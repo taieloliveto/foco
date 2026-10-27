@@ -316,3 +316,27 @@ a.rowb{color:var(--acc);text-decoration:none;font-weight:600}
 #cards .card .pbar{margin-top:10px;flex:none}
 .two .in{min-width:0;padding:0 12px;font-size:1rem}
 .two{grid-template-columns:1.3fr 1fr}
+
+/* Fecha y hora legibles en el celular (iOS deja vacío el campo si no tiene valor) */
+.dt{display:block;min-width:0}
+.dt span{display:block;font-size:.78rem;font-weight:700;color:var(--mut);margin:0 0 4px 2px;text-transform:uppercase;letter-spacing:.05em}
+input[type=date].in,input[type=time].in,input[type=datetime-local].in{-webkit-appearance:none;appearance:none;display:block;width:100%;max-width:100%;min-height:52px;line-height:1.2;text-align:left;position:relative}
+input[type=date].in::-webkit-date-and-time-value,input[type=time].in::-webkit-date-and-time-value{text-align:left;min-height:1.2em}
+input.in.empty{color:transparent}
+input.in.empty::before{content:attr(data-ph);position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--mut);pointer-events:none}
+input.in.empty:focus{color:var(--fg)}
+input.in.empty:focus::before{content:""}
+.two{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);align-items:end}
+.two .in{margin:0}
+.sh,.sh *{min-width:0}
+.sh{overflow-x:hidden;overscroll-behavior:contain}
+.sh .in,.sh select,.sh textarea{max-width:100%}
+html,body{overflow-x:hidden}
+body:has(.ov){overflow:hidden}
+/* Celular: el cuadro de tarea ocupa toda la pantalla */
+@media(max-width:640px){
+  .ov:has(.sh.full){padding:0;align-items:stretch;background:var(--bg)}
+  .sh.full{max-width:none;width:100%;height:100dvh;max-height:none;border-radius:0;box-shadow:none;animation:fade .15s;
+    padding:calc(18px + env(safe-area-inset-top,0px)) 18px calc(28px + env(safe-area-inset-bottom,0px));background:var(--bg);overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
+  .sh.full .in,.sh.full select,.sh.full textarea{background:var(--card)}
+}

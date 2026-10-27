@@ -119,6 +119,12 @@ await step('la barra de Hoy solo crea tareas: título + "más" abre el cuadro co
   assert.equal(await p.inputValue('#tt'), 'Sacar turno');
   assert.equal(await p.inputValue('#td'), addDays(1)); assert.equal(await p.inputValue('#tm'), '09:00');
   assert.equal(await p.locator('#tp').count(), 1);
+  // en el celular: pantalla completa, fecha y hora visibles y sin scroll horizontal
+  const m = await p.evaluate(() => { const r = n => document.querySelector(n).getBoundingClientRect(), sh = document.querySelector('.sh.full'); return { sh: r('.sh.full'), td: r('#td'), tm: r('#tm'), sw: sh.scrollWidth, cw: sh.clientWidth, dw: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
+  assert.ok(m.sh.width >= 389 && m.sh.height >= 843 && m.sh.left === 0 && m.sh.top === 0, 'pantalla completa: ' + JSON.stringify(m.sh));
+  assert.ok(m.td.height >= 44 && m.tm.height >= 44 && m.td.width > 90 && m.tm.width > 90, 'fecha/hora visibles');
+  assert.ok(m.tm.right <= 390 && m.td.left >= 0 && m.sw <= m.cw && m.dw <= 0, 'sin scroll horizontal: ' + JSON.stringify(m));
+  await p.getByRole('button', { name: 'Mañana', exact: true }).click(); await p.fill('#tm', ''); await p.waitForTimeout(500); await shot(p, '03b-tarea-completa');
   await p.getByRole('button', { name: 'Cancelar' }).click();
   await p.locator('#nb-in').filter({ hasText: '2' }).waitFor();   // la bandeja no cambió
 });

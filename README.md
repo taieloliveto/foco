@@ -7,7 +7,7 @@ Organizador personal pensado para personas con TDAH: sacá las cosas de la cabez
 | | |
 |---|---|
 | **Cuenta y sincronización** | Email + contraseña. Datos en la nube; dos dispositivos se combinan sin perder cambios (cada tarea, idea e ítem se combina por separado). |
-| **Captura rápida** | Campo en *Hoy* y botón **+** flotante en todas las pantallas (también el atajo del ícono: "Capturar"). Enter guarda y deja listo para la siguiente. Todo cae en la **Bandeja**, sin clasificar. |
+| **Captura rápida** | Botón **+** flotante en todas las pantallas (también el atajo del ícono: "Capturar"). Enter guarda y deja listo para la siguiente. Todo cae en la **Bandeja**, sin clasificar. |
 | **Bandeja → acción** | Cada idea se convierte con un toque en **tarea** (con fecha, aviso, prioridad y subtareas) o se pasa a una **lista**. |
 | **Tareas y proyectos** | Tareas con notas, estado, prioridad, fecha y hora, subtareas y proyectos. Al escribir `llamar al dentista mañana a las 18` entiende fecha y hora. |
 | **Listas personalizadas** | Deseos, cursos, libros, lugares o las tuyas, con emoji. Se marcan como *conseguido/terminado/leído/visitado* y cada ítem puede volverse tarea. |

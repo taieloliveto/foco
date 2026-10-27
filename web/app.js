@@ -245,8 +245,8 @@ function vToday() {
   const d = new Date();
   return `<div class="hbg" aria-hidden="true"></div>
 <div class="bar clear"><span class="date">${DOW[d.getDay()][0].toUpperCase() + DOW[d.getDay()].slice(1)} ${d.getDate()} de ${MON[d.getMonth()]}</span><span class="rt">${syncBadge()}<button class="icon" data-a="tab" data-t="set" aria-label="Ajustes">${GEAR}</button></span></div>
-<section class="hero"><h1 class="hi" id="hi"></h1><p class="ask">¿Qué tenés en la cabeza?</p>
-${capForm('Anotá una idea o pendiente…', 'cf', 'ci', 'home')}</section>
+<section class="hero"><h1 class="hi" id="hi"></h1><p class="ask">¿Qué tenés que hacer?</p>
+${capForm('Nueva tarea… (ej: llamar al dentista mañana 18)', 'cf', 'ci', 'home', '+', 'Crear tarea')}</section>
 <div id="body"></div>`;
 }
 function taskRow(t, o = {}) {
@@ -819,8 +819,7 @@ document.addEventListener('submit', e => {
   if (id === 'sf') return sheetSubmit();
   const qi = e.target.querySelector && e.target.querySelector('input.in'); if (!qi) return;
   const v = qi.value; if (!v.trim()) return;
-  if (id === 'cf') { const n = capture(v); qi.value = ''; if (n) { paint(); toast(n === 1 ? 'Anotado en tu bandeja ✓' : `${n} ideas anotadas ✓`, 'Ver bandeja', () => go('inbox')); } }
-  else if (id === 'tf-form' || id === 'pf') {
+  if (id === 'cf' || id === 'tf-form' || id === 'pf') {
     const w = parseWhen(v); qi.value = '';
     openTask('', { t: w.t[0].toUpperCase() + w.t.slice(1), d: w.d, tm: w.tm, rk: w.tm ? 'at' : '', pr: id === 'pf' ? curP : '' });
     return;

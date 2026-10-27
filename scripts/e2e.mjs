@@ -105,15 +105,22 @@ await step('registro con nombre y entra a Hoy', async () => {
   assert.equal(await p.locator('[data-au=server]').count(), 0);
   await shot(p, '01-hoy-vacio');
 });
-await step('captura rápida inline: dos ideas sin clasificar', async () => {
-  await p.fill('#ci', 'Comprar regalo para mamá');
-  await p.keyboard.press('Enter');
-  await toast(p, /bandeja/i);
-  await p.fill('#ci', 'Aprender a hacer pan');
-  await p.keyboard.press('Enter');
+await step('captura de ideas con el botón +: dos ideas sin clasificar', async () => {
+  await p.locator('.fab').click();
+  for (const t of ['Comprar regalo para mamá', 'Aprender a hacer pan']) { await p.fill('#ci2', t); await p.keyboard.press('Enter'); }
+  await p.locator('.ok').filter({ hasText: 'Guardadas: 2' }).waitFor();
+  await p.getByRole('button', { name: 'Listo' }).click();
   await p.locator('#nb-in').filter({ hasText: '2' }).waitFor();
   await p.locator('.card.inb').filter({ hasText: '2 ideas' }).waitFor();
-  assert.equal(await p.evaluate(() => document.activeElement.id), 'ci');
+});
+await step('la barra de Hoy solo crea tareas: título + "más" abre el cuadro con proyecto', async () => {
+  await p.fill('#ci', 'Sacar turno mañana a las 9');
+  await p.getByRole('button', { name: 'Crear tarea' }).click();
+  assert.equal(await p.inputValue('#tt'), 'Sacar turno');
+  assert.equal(await p.inputValue('#td'), addDays(1)); assert.equal(await p.inputValue('#tm'), '09:00');
+  assert.equal(await p.locator('#tp').count(), 1);
+  await p.getByRole('button', { name: 'Cancelar' }).click();
+  await p.locator('#nb-in').filter({ hasText: '2' }).waitFor();   // la bandeja no cambió
 });
 await step('captura con el botón +: varias seguidas sin cerrar', async () => {
   await p.locator('.fab').click();

@@ -469,6 +469,10 @@ await step('escritorio: se ve bien en pantalla ancha', async () => {
   await W.page.locator('form#af button[type=submit]').click();
   await W.page.locator('#hi').waitFor();
   await shot(W.page, '14-escritorio');
+  // la rueda del mouse mueve la página (un CSS mal puesto la bloqueaba en escritorio)
+  await W.page.setViewportSize({ width: 1280, height: 320 });
+  await W.page.mouse.move(640, 200); await W.page.mouse.wheel(0, 300); await W.page.waitForTimeout(300);
+  assert.ok(await W.page.evaluate(() => scrollY) > 100, 'la rueda no hizo scroll');
   await W.ctx.close();
 });
 await step('sesión vencida: vuelve al ingreso con aviso', async () => {

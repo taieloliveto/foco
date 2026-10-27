@@ -100,13 +100,22 @@ export async function runReminders(env, now, fetchFn) {
     for (const t of Object.values((u.data && u.data.tasks) || {})) {
       if (t.del || t.s === 'done' || !t.r || t.r > now || t.r < now - STALE || u.sent[t.id] === t.r) continue;
       const msg = { title: t.t, body: reminderBody(t), tag: 'task-' + t.id, url: '/?task=' + t.id, id: t.id, r: t.r };
-      const dead = [];
+      const dead = []; let ok = 0;
       for (const sub of u.push || []) {
-        try { const st = await sendPush(sub, msg, env, fetchFn); if (st === 404 || st === 410) dead.push(sub.endpoint); else if (st < 300) sent++; }
-        catch (_) { /* reintenta el minuto siguiente solo si ninguna suscripción llegó */ }
+        const o = {};
+        try {
+          const st = await sendPush(sub, msg, env, fetchFn, o);
+          if (st === 404 || st === 410) dead.push(sub.endpoint);
+          else if (st < 300) { sent++; ok++; }
+          else u.pushErr = { at: now, status: st, host: new URL(sub.endpoint).host, detail: o.detail || '' };
+        } catch (e) { u.pushErr = { at: now, status: 0, host: '', detail: String((e && e.message) || e).slice(0, 160) }; }
       }
       if (dead.length) u.push = u.push.filter(s => !dead.includes(s.endpoint));
-      u.sent[t.id] = t.r; changed = true;
+      // Si no llegó a ningún dispositivo se reintenta cada minuto (hasta 5 veces); recién después se da por enviado.
+      u.tries = u.tries || {};
+      const k = t.id + ':' + t.r;
+      if (!ok && (u.push || []).length && (u.tries[k] = (u.tries[k] || 0) + 1) < 5) { changed = true; continue; }
+      delete u.tries[k]; u.sent[t.id] = t.r; changed = true;
     }
     for (const id of Object.keys(u.sent)) if (!(u.data.tasks || {})[id]) { delete u.sent[id]; changed = true; }
     if (changed) await env.KV.put('user:' + email, JSON.stringify(u));
@@ -226,11 +235,16 @@ export default {
         const raw = await env.KV.get('user:' + email);
         const u = raw ? JSON.parse(raw) : null;
         if (!u || !(u.push || []).length) return j({ error: 'Este dispositivo no está suscripto' }, 400);
-        let sent = 0;
+        let sent = 0; const results = [];
         for (const sub of u.push) {
-          try { if ((await sendPush(sub, { title: 'Foco', body: '¡Los avisos funcionan! 🎉', tag: 'test', url: '/' }, env, env.__fetch)) < 300) sent++; } catch (_) {}
+          const o = {}, host = new URL(sub.endpoint).host;
+          try {
+            const st = await sendPush(sub, { title: 'Foco', body: '¡Los avisos funcionan! 🎉', tag: 'test', url: '/' }, env, env.__fetch, o);
+            if (st < 300) sent++;
+            results.push({ host, status: st, detail: o.detail || '' });
+          } catch (e) { results.push({ host, status: 0, detail: String((e && e.message) || e).slice(0, 160) }); }
         }
-        return j({ sent });
+        return j({ sent, results, lastError: u.pushErr || null });
       }
 
       if (url.pathname === '/account' && req.method === 'DELETE') {

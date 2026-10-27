@@ -1,5 +1,5 @@
 /* Service worker de Foco: la app abre sin conexión y recibe avisos de recordatorios (Web Push). */
-const V = 'foco-v1';
+const V = 'foco-v2';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'merge.js', 'gcal.js', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -17,10 +17,10 @@ self.addEventListener('fetch', e => {
     e.respondWith(fetch(req).then(r => { const copy = r.clone(); caches.open(V).then(c => c.put('index.html', copy)); return r; }).catch(() => caches.match('index.html')));
     return;
   }
+  // Primero la red (así siempre corre el código más nuevo); sin conexión, lo guardado.
   e.respondWith(caches.open(V).then(async c => {
-    const hit = await c.match(req);
-    const net = fetch(req).then(r => { if (r && r.ok) c.put(req, r.clone()); return r; }).catch(() => hit);
-    return hit || net;
+    try { const r = await fetch(req); if (r && r.ok) c.put(req, r.clone()); return r; }
+    catch (err) { const hit = await c.match(req); if (hit) return hit; throw err; }
   }));
 });
 

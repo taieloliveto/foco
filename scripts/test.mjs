@@ -186,6 +186,20 @@ await ok('suscripción muerta (410) se elimina', async () => {
   await runReminders(env, T + 10 * 3600000 + 1000, async () => ({ status: 410 }));
   assert.equal(JSON.parse(store.get('user:ana@mail.com')).push.length, 0);
 });
+await ok('si el servicio de avisos rechaza (403) se reintenta y se informa el motivo', async () => {
+  await call('PUT', '/data', { data: { tasks: { r5: tk('r5', 'Reintento', T + 300000, { r: T + 11 * 3600000, rk: 'at' }) } } }, token);
+  await call('POST', '/push/subscribe', { sub: SUB }, token);
+  const bad = async () => ({ status: 403, text: async () => 'BadJwtToken' });
+  const base = T + 11 * 3600000;
+  for (let i = 0; i < 4; i++) { assert.equal((await runReminders(env, base + 1000 + i * 60000, bad)).sent, 0); assert.ok(JSON.parse(store.get('idx'))['ana@mail.com'] <= base, 'sigue pendiente'); }
+  const u = JSON.parse(store.get('user:ana@mail.com'));
+  assert.equal(u.pushErr.status, 403); assert.equal(u.pushErr.detail, 'BadJwtToken');
+  await runReminders(env, base + 5 * 60000, bad);                               // 5.º intento: se da por enviado
+  assert.equal(JSON.parse(store.get('idx'))['ana@mail.com'], undefined);
+  const prev = env.__fetch; env.__fetch = bad;
+  const r = await call('POST', '/push/test', {}, token); env.__fetch = prev;
+  assert.equal(r.body.sent, 0); assert.equal(r.body.results[0].status, 403); assert.equal(r.body.results[0].detail, 'BadJwtToken'); assert.equal(r.body.lastError.status, 403);
+});
 await ok('sin avisos configurados el cron no hace nada', async () => {
   assert.equal((await runReminders({ KV, SERVER_SECRET: 'x' }, T)).sent, 0);
 });

@@ -40,7 +40,7 @@ try {
 } catch (_) {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (_) {} };
 /* Preferencias de este dispositivo (no se sincronizan) */
-let L = { fired: {}, pushEp: '', notif: false, events: null, open: {} };
+let L = { fired: {}, pushEp: '', pushErr: '', notif: false, events: null, open: {} };
 try { const r = JSON.parse(localStorage.getItem(LKEY) || 'null'); if (r && typeof r === 'object') L = { ...L, ...r }; } catch (_) {}
 const saveL = () => { try { localStorage.setItem(LKEY, JSON.stringify(L)); } catch (_) {} };
 
@@ -436,7 +436,7 @@ function vSet() {
 <h3>Avisos</h3>
 <p class="mut small">${esc(pn.msg)}</p>
 ${pn.on ? '<div class="set-row"><span class="mut">Avisos</span><span>Activados</span></div>' : ''}
-${pn.canEnable ? '<button class="sb" data-a="pushon">Activar avisos de recordatorios</button>' : ''}
+${pn.canEnable ? `<button class="sb" data-a="pushon">${pn.retry ? 'Reintentar activar avisos' : 'Activar avisos de recordatorios'}</button>` : ''}
 ${pn.on ? '<button class="sb" data-a="pushtest">Enviar aviso de prueba</button><button class="sb" data-a="pushoff">Desactivar avisos</button>' : ''}
 ${GCal.enabled() ? `<h3>Google Calendar</h3><p class="mut small">${GCal.linked() ? 'Conectado.' : 'Sin conectar.'} Foco solo lee y crea eventos; nunca borra los tuyos.</p>${GCal.valid() || GCal.linked() ? '<button class="sb dng" data-a="gdisc">Desconectar Google Calendar</button>' : '<button class="sb" data-a="gconn">Conectar Google Calendar</button>'}` : ''}
 <h3>Instalar</h3>
@@ -633,30 +633,39 @@ function pushState() {
   if (!('Notification' in window)) return { msg: 'Este navegador no permite avisos.', on: false, canEnable: false };
   if (isIOS && !standalone()) return { msg: 'En iPhone los avisos solo funcionan con la app instalada: Safari → Compartir → Agregar a inicio, y abrila desde ahí.', on: false, canEnable: false };
   if (Notification.permission === 'denied') return { msg: 'Bloqueaste los avisos para este sitio. Activalos desde los permisos del navegador.', on: false, canEnable: false };
-  if (Notification.permission === 'granted' && L.notif) return { msg: L.pushEp ? 'Activados: te aviso aunque la app esté cerrada.' : 'Activados mientras la app esté abierta (el servidor no tiene avisos configurados).', on: true, canEnable: false };
+  if (Notification.permission === 'granted' && L.notif && L.pushEp) return { msg: 'Activados: te aviso aunque la app esté cerrada.', on: true, canEnable: false };
+  if (Notification.permission === 'granted' && L.notif) return { msg: 'El permiso está dado, pero este dispositivo no quedó conectado al servicio de avisos' + (L.pushErr ? ' (' + L.pushErr + ')' : '') + '. Tocá reintentar. Mientras tanto, los avisos solo se ven con la app abierta.', on: false, canEnable: true, retry: true };
   return { msg: 'Activalos para que Foco te avise a la hora de tus recordatorios.', on: false, canEnable: true };
 }
 const b64ToU8 = s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
+/* Conecta este dispositivo al servicio de avisos. Si algo falla, guarda el motivo en L.pushErr para mostrarlo en Ajustes. */
 async function subscribePush(silent) {
-  if (!pushCapable() || !S.token) return;
+  if (!S.token) return false;
+  const fail = m => { L.pushErr = m; saveL(); if (!silent) toast(m); return false; };
+  if (!pushCapable()) return fail('este navegador no admite avisos con la app cerrada');
   let vapid = CFG.VAPID_PUBLIC || '';
-  if (!vapid) { try { vapid = (await api('/config')).vapid || ''; } catch (_) {} }
-  if (!vapid) return;
-  const reg = await navigator.serviceWorker.ready;
-  let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
-    try { sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(vapid) }); }
-    catch (e) { if (!silent) toast('No se pudo activar el aviso con la app cerrada'); return; }
-  }
-  if (sub.endpoint !== L.pushEp) { await api('/push/subscribe', { method: 'POST', body: JSON.stringify({ sub: sub.toJSON() }) }); L.pushEp = sub.endpoint; saveL(); }
+  if (!vapid) { try { vapid = (await api('/config')).vapid || ''; } catch (e) { return fail(e.net ? 'sin conexión con el servidor' : e.message); } }
+  if (!vapid) return fail('el servidor no tiene las claves de avisos');
+  let sub;
+  try {
+    const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((_, rej) => setTimeout(() => rej(new Error('la app todavía no terminó de instalarse; cerrala y abrila de nuevo')), 8000))]);
+    sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(vapid) });
+  } catch (e) { return fail('el navegador no pudo crear la suscripción: ' + String((e && e.message) || e).slice(0, 120)); }
+  try { await api('/push/subscribe', { method: 'POST', body: JSON.stringify({ sub: sub.toJSON() }) }); }
+  catch (e) { return fail(e.net ? 'sin conexión con el servidor' : e.message); }
+  L.pushEp = sub.endpoint; L.pushErr = ''; saveL();
+  return true;
 }
 async function enablePush() {
   if (!('Notification' in window)) return;
   const p = await Notification.requestPermission();
   if (p !== 'granted') { toast('No diste permiso para los avisos'); return; }
   L.notif = true; saveL();
-  try { await subscribePush(false); } catch (e) { toast(e.net ? 'Sin conexión: se activó solo con la app abierta' : e.message); }
-  toast('Avisos activados ✓'); if (view === 'set') render();
+  const ok = await subscribePush(true);
+  if (ok) toast('Avisos activados ✓');
+  else toast('No se pudo conectar con el servicio de avisos: ' + (L.pushErr || 'error desconocido'));
+  if (view === 'set') render();
 }
 async function disablePush() {
   L.notif = false; saveL();
@@ -809,7 +818,14 @@ const A = {
   gdisc() { ask('¿Desconectar Google Calendar?', 'Tus eventos no se borran; solo dejás de verlos en Foco.', 'Desconectar', () => { GCal.disconnect(); L.events = null; saveL(); render(); toast('Desconectado'); }); },
   pushon() { enablePush(); },
   pushoff() { disablePush(); },
-  async pushtest() { try { const r = await api('/push/test', { method: 'POST', body: '{}' }); toast(r.sent ? 'Aviso enviado: debería llegar en unos segundos' : 'No se pudo enviar el aviso'); } catch (e) { toast(e.message); } },
+  async pushtest() {
+    try {
+      const r = await api('/push/test', { method: 'POST', body: '{}' });
+      if (r.sent) { toast('Aviso enviado: debería llegar en unos segundos'); return; }
+      const x = (r.results || [])[0] || {};
+      toast(`El servicio de avisos${x.host ? ' (' + x.host + ')' : ''} respondió ${x.status || 'con un error'}${x.detail ? ': ' + x.detail : ''}`);
+    } catch (e) { toast(e.message); }
+  },
   rx(b) { b.closest('.rmc').remove(); },
   rdone(b) { const id = b.dataset.id; b.closest('.rmc').remove(); setDone(id, true); paint(); paintNav(); toast('¡Hecho! ✓', 'Deshacer', () => { setDone(id, false); paint(); }); },
   rsnz(b) { b.closest('.rmc').remove(); snooze(b.dataset.id, 'h1'); paint(); },
@@ -932,7 +948,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 function startup2() {
   checkDue(); loadEvents();
-  if (L.notif && 'Notification' in window && Notification.permission === 'granted') subscribePush(true).catch(() => {});
+  if (L.notif && 'Notification' in window && Notification.permission === 'granted') subscribePush(true).then(() => { if (view === 'set') render(); }).catch(() => {});
 }
 if (S.token) {
   view = 'today';

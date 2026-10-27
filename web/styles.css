@@ -331,7 +331,7 @@ input.in.empty:focus::before{content:""}
 .sh,.sh *{min-width:0}
 .sh{overflow-x:hidden;overscroll-behavior:contain}
 .sh .in,.sh select,.sh textarea{max-width:100%}
-html,body{overflow-x:hidden}
+html,body{overflow-x:clip}
 body:has(.ov){overflow:hidden}
 /* Celular: el cuadro de tarea ocupa toda la pantalla */
 @media(max-width:640px){

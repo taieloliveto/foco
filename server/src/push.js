@@ -78,7 +78,7 @@ export async function vapidAuth(endpoint, env, now) {
 }
 
 /* Envía un aviso. Devuelve el status HTTP (201 ok; 404/410 = suscripción muerta). */
-export async function sendPush(sub, message, env, fetchFn) {
+export async function sendPush(sub, message, env, fetchFn, out) {
   const body = await encryptPayload(sub, JSON.stringify(message));
   const res = await (fetchFn || fetch)(sub.endpoint, {
     method: 'POST',
@@ -89,5 +89,6 @@ export async function sendPush(sub, message, env, fetchFn) {
     },
     body
   });
+  if (out && res.status >= 300) { try { out.detail = String(await res.text()).slice(0, 200); } catch (_) {} }
   return res.status;
 }

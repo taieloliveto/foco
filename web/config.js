@@ -5,5 +5,5 @@ window.FOCO_CONFIG = {
   // Clave pública de avisos (la genera scripts/setup-server.sh). Vacía = sin avisos con la app cerrada.
   VAPID_PUBLIC: "",
   // ID de cliente OAuth de Google para Calendar (ver README). Vacío = Agenda desactivada.
-  GOOGLE_CLIENT_ID: ""
+  GOOGLE_CLIENT_ID: "370370724859-mlfnv3qtoujhj2kn8qsjohdf2ied0n8i.apps.googleusercontent.com"
 };

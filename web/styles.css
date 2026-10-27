@@ -340,3 +340,32 @@ body:has(.ov){overflow:hidden}
     padding:calc(18px + env(safe-area-inset-top,0px)) 18px calc(28px + env(safe-area-inset-bottom,0px));background:var(--bg);overflow-y:auto;overflow-x:hidden;touch-action:pan-y}
   .sh.full .in,.sh.full select,.sh.full textarea{background:var(--card)}
 }
+
+/* Home: barra de alta del ancho de las cards; proyectos desplegables */
+.hero{align-items:stretch}
+.hero .qa{max-width:none;width:100%}
+.pgs{display:grid;gap:12px;margin-top:4px}
+.pg{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);overflow:hidden}
+.ph{display:flex;align-items:center;gap:10px;width:100%;min-height:62px;padding:8px 16px;background:none;border:0;text-align:left;font-weight:700;font-size:1.05rem}
+.ph .chev{flex:none;font-size:1.5rem;line-height:1;color:var(--mut);transition:transform .2s;width:14px;text-align:center}
+.pg.open .chev{transform:rotate(90deg)}
+.ph .pn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cnts{display:flex;gap:6px;flex:none}
+.cnt{min-width:28px;height:28px;padding:0 9px;border-radius:99px;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:.88rem;color:#fff}
+.cnt.c3{background:var(--p3)}.cnt.c2{background:var(--p2);color:#2B1E00}.cnt.c1{background:var(--p1)}.cnt.c0{background:var(--line);color:var(--fg)}
+@media(prefers-color-scheme:dark){.cnt.c3,.cnt.c1{color:#10102A}}
+.pbody{padding:0 8px 6px 4px;border-top:1px solid var(--line)}
+.pbody .it:last-child{border-bottom:0}
+/* Reordenar */
+.grip{flex:none;width:36px;height:44px;align-self:center;display:grid;place-items:center;background:none;border:0;color:var(--mut);cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;border-radius:10px}
+.grip:focus-visible{outline:2px solid var(--acc)}
+.grip:active{cursor:grabbing}
+.drag{position:relative;z-index:8;background:var(--card);box-shadow:0 10px 28px rgba(40,30,120,.3);border-radius:14px;opacity:.98}
+body.dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
+.card.pc{display:flex;align-items:center;padding:0 6px 0 0;text-align:left}
+.card.pc .pmain{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;height:100%;padding:0 6px 0 18px;background:none;border:0;text-align:left}
+/* Cards de proyecto con agarre a la derecha (misma altura que el resto) */
+#cards .card.pc{flex-direction:row;align-items:center;justify-content:flex-start;padding:0 6px 0 0}
+#cards .card.pc .pmain{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:stretch;text-align:left;padding:0 6px 0 18px}
+#cards .card.pc .pmain b,#cards .card.pc .pmain small{text-align:left}
+#cards .card.pc .grip{align-self:center}

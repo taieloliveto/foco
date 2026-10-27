@@ -58,6 +58,12 @@ await ok('tumbas viejas se descartan y se acota la cantidad', () => {
   const many = {}; for (let i = 0; i < 3500; i++) many['t' + i] = tk('t' + i, 'x' + i, i + 1);
   assert.equal(Object.keys(sanitizeState({ tasks: many }).tasks).length, 3000);
 });
+await ok('el orden manual de las tareas se conserva, se acota y gana el cambio más nuevo', () => {
+  const s = sanitizeState({ tasks: { a: tk('a', 'A', T, { o: 3 }), b: tk('b', 'B', T, { o: -4 }), c: tk('c', 'C', T, { o: 'x' }), d: tk('d', 'D', T, { o: 9e9 }) } });
+  assert.deepEqual([s.tasks.a.o, s.tasks.b.o, s.tasks.c.o, s.tasks.d.o], [3, 0, 0, 1000000]);
+  const m = mergeState({ tasks: { a: tk('a', 'A', T, { o: 3 }) } }, { tasks: { a: tk('a', 'A', T + 5, { o: 1 }) } });
+  assert.equal(m.tasks.a.o, 1);
+});
 await ok('emoji: solo uno y válido', () => {
   assert.equal(firstEmoji('📚 libros'), '📚'); assert.equal(firstEmoji('abc'), ''); assert.equal(firstEmoji('👨‍👩‍👧'), '👨‍👩‍👧'); assert.equal(firstEmoji(''), '');
 });

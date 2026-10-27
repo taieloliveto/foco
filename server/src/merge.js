@@ -10,7 +10,8 @@
                   t título · n notas · s estado (todo|doing|done) · p prioridad 0-3
                   d fecha 'AAAA-MM-DD' · tm hora 'HH:MM' · r recordatorio (ms) · rk tipo de recordatorio
                   pr proyecto · par tarea madre (subtareas) · ev/evl bloque en Google Calendar · dn cuándo se completó
-     projects: { id: { id, n, e, ar, c, u, del } },
+                  o orden manual dentro de su proyecto (0 = sin ordenar: va al final, por fecha de creación)
+     projects: { id: { id, n, e, ar, o, c, u, del } },   (o = orden manual)
      lists:    { id: { id, n, e, k, c, u, del, items: { id: { id, n, no, d, dn, c, u, del } } } },
      last, lastU                               última lista abierta
    } */
@@ -25,6 +26,7 @@ const TASK_STATES = ['todo', 'doing', 'done'];
 const REMINDER_KINDS = ['', 'at', '10m', '1h', 'day9', 'prev9', 'custom'];
 const LIST_KINDS = ['wish', 'course', 'book', 'place', 'custom'];
 const ymdOk = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
+const ordN = x => Math.min(1e6, Math.max(0, Math.round(num(x))));
 const hmOk = s => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 
 /* Emoji de una lista/proyecto: un solo carácter emoji (banderas, familias y teclas incluidas) o vacío. */
@@ -62,12 +64,12 @@ function fixTask(r, id) {
     r: rr, rk: rr && REMINDER_KINDS.includes(r.rk) ? r.rk : (rr ? 'custom' : ''),
     pr: idOk(r.pr) ? r.pr : '', par: idOk(r.par) ? r.par : '',
     ev: str(r.ev, 120), evl: typeof r.evl === 'string' && /^https:\/\/\S+$/.test(r.evl) ? r.evl.slice(0, 400) : '',
-    dn: s === 'done' ? (num(r.dn) || u) : 0, c: num(r.c), u, del
+    dn: s === 'done' ? (num(r.dn) || u) : 0, o: ordN(r.o), c: num(r.c), u, del
   };
 }
 function fixProject(r, id) {
   if (!isObj(r)) return null;
-  return { id, n: str(r.n, 80).trim() || 'Proyecto', e: firstEmoji(r.e), ar: !!r.ar, c: num(r.c), u: num(r.u), del: !!r.del };
+  return { id, n: str(r.n, 80).trim() || 'Proyecto', e: firstEmoji(r.e), ar: !!r.ar, o: ordN(r.o), c: num(r.c), u: num(r.u), del: !!r.del };
 }
 function fixItem(r, id) {
   if (!isObj(r)) return null;

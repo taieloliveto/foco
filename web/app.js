@@ -40,13 +40,13 @@ try {
 } catch (_) {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (_) {} };
 /* Preferencias de este dispositivo (no se sincronizan) */
-let L = { fired: {}, pushEp: '', notif: false, events: null };
+let L = { fired: {}, pushEp: '', notif: false, events: null, open: {} };
 try { const r = JSON.parse(localStorage.getItem(LKEY) || 'null'); if (r && typeof r === 'object') L = { ...L, ...r }; } catch (_) {}
 const saveL = () => { try { localStorage.setItem(LKEY, JSON.stringify(L)); } catch (_) {} };
 
 let view = 'auth', sheet = null, busy = false, st = 'ok', rev = 0, cur = '', curP = '';
 let authMode = 'login', authErr = '', authEmail = S.email, authPass = '', authName = '';
-let installEvt = null, tfilter = 'proj', histN = 40, evErr = '', evBusy = false;
+let dragging = false, installEvt = null, tfilter = 'proj', histN = 40, evErr = '', evBusy = false;
 const D = () => S.data;
 
 /* ---------- Consultas ---------- */
@@ -54,7 +54,9 @@ const tasks = () => Object.values(D().tasks).filter(t => !t.del);
 const top = () => tasks().filter(t => !t.par);
 const openT = () => top().filter(t => t.s !== 'done');
 const subsOf = id => tasks().filter(t => t.par === id).sort((a, b) => a.c - b.c);
-const projects = () => Object.values(D().projects).filter(p => !p.del && !p.ar).sort((a, b) => a.c - b.c);
+const ordK = e => e.o || e.c;
+const byOrd = (a, b) => ordK(a) - ordK(b);
+const projects = () => Object.values(D().projects).filter(p => !p.del && !p.ar).sort(byOrd);
 const proj = id => { const p = D().projects[id]; return p && !p.del ? p : null; };
 const lists = () => Object.values(D().lists).filter(l => !l.del).sort((a, b) => a.c - b.c);
 const itemsOf = l => Object.values(l.items).filter(i => !i.del);
@@ -108,7 +110,7 @@ async function sync() {
 }
 function expireSession() { S.token = ''; save(); authErr = 'Tu sesión venció. Ingresá de nuevo.'; authEmail = S.email; authPass = ''; go('auth'); }
 function afterRemote() {
-  if (view === 'auth' || sheet) { paintNav(); return; }
+  if (view === 'auth' || sheet || dragging) { paintNav(); return; }
   if ((view === 'list' && !curList()) || (view === 'project' && !curProj())) { go(view === 'list' ? 'lists' : 'tasks'); return; }
   paint(); paintNav();
 }
@@ -148,7 +150,7 @@ const toLocalInput = ms => { const d = new Date(ms); return `${ymd(d)}T${pad(d.g
 /* ---------- Mutaciones ---------- */
 function newTask(o) {
   const id = uid(), t = now();
-  const task = { id, t: '', n: '', s: 'todo', p: 0, d: '', tm: '', r: 0, rk: '', pr: '', par: '', ev: '', evl: '', dn: 0, c: stamp(), u: t, del: false, ...o };
+  const task = { id, t: '', n: '', s: 'todo', p: 0, d: '', tm: '', r: 0, rk: '', pr: '', par: '', ev: '', evl: '', dn: 0, o: 0, c: stamp(), u: t, del: false, ...o };
   task.r = calcR(task.d, task.tm, task.rk, task.r);
   if (!task.r) task.rk = '';
   D().tasks[id] = task; return task;
@@ -212,7 +214,7 @@ function addItems(l, text) {
 }
 function newProject(name, emoji) {
   const id = uid();
-  D().projects[id] = { id, n: (name || '').trim().slice(0, 80) || 'Proyecto', e: firstEmoji(emoji), ar: false, c: stamp(), u: now(), del: false };
+  D().projects[id] = { id, n: (name || '').trim().slice(0, 80) || 'Proyecto', e: firstEmoji(emoji), ar: false, o: 0, c: stamp(), u: now(), del: false };
   touch(); return id;
 }
 
@@ -259,24 +261,39 @@ function taskRow(t, o = {}) {
   if (p && !o.noProject) meta.push(`<span class="mt">${p.e ? esc(p.e) + ' ' : ''}${esc(p.n)}</span>`);
   if (t.p && !(t.s === 'done')) meta.unshift(`<span class="mt pp${t.p}">${['', 'Baja', 'Media', 'Alta'][t.p]}</span>`);
   const done = t.s === 'done';
-  return `<div class="it pr${done ? 0 : t.p}${done ? ' done' : ''}"><button class="chk p${t.p}" data-a="tdone" data-id="${esc(t.id)}" aria-pressed="${done}" aria-label="${done ? 'Reabrir' : 'Completar'} ${esc(t.t)}"><span class="box" aria-hidden="true"></span></button><button class="main" data-a="topen" data-id="${esc(t.id)}"><span class="nm">${esc(t.t)}</span>${meta.length ? `<span class="meta">${meta.join('')}</span>` : ''}</button>${o.snz ? `<button class="more" data-a="tsnz" data-id="${esc(t.id)}" aria-label="Posponer ${esc(t.t)}">⏰</button>` : ''}</div>`;
+  return `<div class="it pr${done ? 0 : t.p}${done ? ' done' : ''}" data-id="${esc(t.id)}"><button class="chk p${t.p}" data-a="tdone" data-id="${esc(t.id)}" aria-pressed="${done}" aria-label="${done ? 'Reabrir' : 'Completar'} ${esc(t.t)}"><span class="box" aria-hidden="true"></span></button><button class="main" data-a="topen" data-id="${esc(t.id)}"><span class="nm">${esc(t.t)}</span>${meta.length ? `<span class="meta">${meta.join('')}</span>` : ''}</button>${o.snz ? `<button class="more" data-a="tsnz" data-id="${esc(t.id)}" aria-label="Posponer ${esc(t.t)}">⏰</button>` : ''}${o.grip ? gripBtn('Reordenar ' + t.t) : ''}</div>`;
 }
+const GRIP = '<svg viewBox="0 0 12 20" width="12" height="20" fill="currentColor" aria-hidden="true"><circle cx="3" cy="4" r="1.6"/><circle cx="9" cy="4" r="1.6"/><circle cx="3" cy="10" r="1.6"/><circle cx="9" cy="10" r="1.6"/><circle cx="3" cy="16" r="1.6"/><circle cx="9" cy="16" r="1.6"/></svg>';
+const gripBtn = label => `<button type="button" class="grip" aria-label="${esc(label)}" title="Arrastrá para reordenar">${GRIP}</button>`;
 const secH = (t, extra = '') => `<div class="sec"><h3>${t}</h3>${extra}</div>`;
 const fmtEv = e => e.allDay ? 'Todo el día' : `${hm(e.s)}–${hm(e.e)}`;
 
+const PLBL = ['sin prioridad', 'prioridad baja', 'prioridad media', 'prioridad alta'];
+function groupsHome() {
+  const by = new Map();
+  for (const t of openT()) { const k = proj(t.pr) ? t.pr : ''; if (!by.has(k)) by.set(k, []); by.get(k).push(t); }
+  const out = [];
+  for (const p of projects()) if (by.has(p.id)) out.push({ key: p.id, p, tasks: by.get(p.id).sort(byOrd) });
+  if (by.has('')) out.push({ key: '', p: null, tasks: by.get('').sort(byOrd) });
+  return out;
+}
+function groupHtml(g, isOpen) {
+  const cnt = [0, 0, 0, 0]; g.tasks.forEach(t => cnt[t.p]++);
+  const badges = [3, 2, 1, 0].filter(p => cnt[p]).map(p => `<i class="cnt c${p}" aria-label="${cnt[p]} de ${PLBL[p]}" title="${PLBL[p]}">${cnt[p]}</i>`).join('');
+  return `<section class="pg${isOpen ? ' open' : ''}" data-key="${esc(g.key || '_none')}"><button class="ph" data-a="ptoggle" data-id="${esc(g.key || '_none')}" aria-expanded="${isOpen}"><span class="chev" aria-hidden="true">›</span><span class="pn">${g.p ? nm(g.p) : 'Sin proyecto'}</span><span class="cnts">${badges}</span></button>${isOpen ? `<div class="pbody" data-sort="tasks">${g.tasks.map(t => taskRow(t, { noProject: 1, grip: 1 })).join('')}</div>` : ''}</section>`;
+}
 function bodyToday() {
   const td = today(), O = openT().sort(cmp);
-  const tod = O.filter(t => t.d === td), rest = O.filter(t => t.d !== td);
+  const tod = O.filter(t => t.d && t.d <= td);
   const doneToday = top().filter(t => t.s === 'done' && ymd(new Date(t.dn)) === td).length;
-  const ib = inbox().length;
+  const ib = inbox().length, G = groupsHome();
   let h = '';
   if (ib) h += `<button class="card inb" data-a="inbox"><b>📥 Bandeja</b><small>${ib} ${ib === 1 ? 'idea' : 'ideas'} sin clasificar · tocá para convertirlas en acciones</small></button>`;
   h += secH(`Para hoy${tod.length ? ' · ' + tod.length : ''}`);
   h += tod.length ? tod.map(t => taskRow(t, { snz: 1 })).join('') : `<div class="empty small-e"><p class="mut">${doneToday ? '¡Terminaste lo de hoy! 🎉' : 'No tenés nada agendado para hoy.'}</p></div>`;
-  if (rest.length) {
-    h += secH(`Pendientes · ${rest.length}`) + (rest.some(t => t.d && t.d < td) ? '<p class="mut small hint">Sin culpa: lo atrasado va en rojo. Hacelo o reprogramalo con ⏰.</p>' : '');
-    h += rest.slice(0, 20).map(t => taskRow(t, { snz: t.d && t.d < td })).join('');
-    if (rest.length > 20) h += `<button class="btn ghost" data-a="alltasks" style="margin-top:12px">Ver todas (${rest.length})</button>`;
+  if (G.length) {
+    h += secH(`Pendientes por proyecto · ${O.length}`);
+    h += '<div class="pgs">' + G.map(g => groupHtml(g, L.open && g.key in L.open ? !!L.open[g.key] : (L.open && (g.key || '_none') in L.open ? !!L.open[g.key || '_none'] : G.length === 1))).join('') + '</div>';
   }
   if (GCal.enabled()) {
     const evs = todayEvents();
@@ -302,9 +319,9 @@ function bodyTasks() {
   if (tfilter === 'proj') {
     const P = projects();
     let h = P.map(p => { const all = top().filter(t => t.pr === p.id), d = all.filter(t => t.s === 'done').length;
-      return `<button class="card" data-a="oproj" data-id="${esc(p.id)}"><b>${nm(p)}</b><small>${all.length ? `${all.length - d} pendientes · ${all.length} en total` : 'Sin tareas'}</small><div class="pbar" aria-hidden="true"><i style="width:${all.length ? Math.round(d / all.length * 100) : 0}%"></i></div></button>`; }).join('');
+      return `<div class="card pc" data-id="${esc(p.id)}"><button class="pmain" data-a="oproj" data-id="${esc(p.id)}"><b>${nm(p)}</b><small>${all.length ? `${all.length - d} pendientes · ${all.length} en total` : 'Sin tareas'}</small><div class="pbar" aria-hidden="true"><i style="width:${all.length ? Math.round(d / all.length * 100) : 0}%"></i></div></button>${gripBtn('Reordenar ' + p.n)}</div>`; }).join('');
     if (!P.length) h = '<div class="empty"><div class="big" aria-hidden="true">🗂️</div><h2>Todavía no tenés proyectos</h2><p class="mut">Agrupá tareas relacionadas: “Mudanza”, “Trámites”, “Viaje”…</p></div>';
-    return `<div id="cards">${h}</div><button class="btn newbtn" data-a="newproj">+ Nuevo proyecto</button>`;
+    return `<div id="cards" data-sort="projects">${h}</div><button class="btn newbtn" data-a="newproj">+ Nuevo proyecto</button>`;
   }
   if (tfilter === 'done') return bodyHistory();
   const td = today(), O = openT().sort(cmp);
@@ -364,9 +381,9 @@ function vProject() {
 }
 function bodyProject() {
   const p = curProj(); if (!p) return '';
-  const all = top().filter(t => t.pr === p.id), o = all.filter(t => t.s !== 'done').sort(cmp), d = all.filter(t => t.s === 'done').sort((a, b) => b.dn - a.dn);
+  const all = top().filter(t => t.pr === p.id), o = all.filter(t => t.s !== 'done').sort(byOrd), d = all.filter(t => t.s === 'done').sort((a, b) => b.dn - a.dn);
   $('#pt').innerHTML = nm(p); $('#ps').textContent = all.length ? `${o.length} pendientes · ${d.length} hechas` : 'Sin tareas';
-  let h = o.length ? o.map(t => taskRow(t, { noProject: 1 })).join('') : '<div class="empty small-e"><p class="mut">Sin tareas pendientes.</p></div>';
+  let h = o.length ? `<div data-sort="tasks">${o.map(t => taskRow(t, { noProject: 1, grip: 1 })).join('')}</div>` : '<div class="empty small-e"><p class="mut">Sin tareas pendientes.</p></div>';
   if (d.length) h += secH(`Hechas · ${d.length}`) + d.map(t => taskRow(t, { noProject: 1 })).join('');
   return h;
 }
@@ -730,7 +747,7 @@ const A = {
   inbox() { go('inbox'); },
   tf(b) { tfilter = b.dataset.f; histN = 40; render(); },
   histmore() { histN += 40; paint(); },
-  alltasks() { tfilter = 'open'; go('tasks'); },
+  ptoggle(b) { const k = b.dataset.id; const g = groupsHome().find(x => (x.key || '_none') === k); const was = L.open && k in L.open ? !!L.open[k] : groupsHome().length === 1; L.open = { ...L.open, [k]: !was }; saveL(); paint(); const nb = document.querySelector(`.ph[data-id="${CSS.escape(k)}"]`); if (nb) nb.focus({ preventScroll: true }); },
   topen(b) { openTask(b.dataset.id); },
   tdone(b) {
     const id = b.dataset.id, t = D().tasks[id]; if (!t) return;
@@ -840,6 +857,56 @@ document.addEventListener('change', e => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && sheet) closeSheet();
   if (e.key === 'Enter' && e.target.id === 'ns') { e.preventDefault(); A.subadd(); }
+});
+
+/* ---------- Reordenar (arrastrar con el agarre ⋮⋮, o con las flechas ↑ ↓ del teclado) ---------- */
+function reorder(kind, ids) {
+  const map = kind === 'projects' ? D().projects : D().tasks, t = now();
+  let ch = false;
+  ids.forEach((id, i) => { const e = map[id]; if (e && e.o !== i + 1) { e.o = i + 1; e.u = t; ch = true; } });
+  if (ch) touch();
+  paint();
+}
+const itemsIn = c => [...c.children].filter(x => x.dataset.id);
+document.addEventListener('pointerdown', e => {
+  const h = e.target.closest('.grip'); if (!h || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  const el = h.parentElement.closest('[data-id]'), cont = el && el.parentElement;
+  if (!cont || !cont.dataset.sort) return;
+  e.preventDefault();
+  dragging = true; h.setPointerCapture(e.pointerId); el.classList.add('drag'); document.body.classList.add('dragging');
+  let startY = e.clientY;
+  const move = ev => {
+    let dy = ev.clientY - startY; el.style.transform = `translateY(${dy}px)`;
+    const mid = el.getBoundingClientRect().top + el.offsetHeight / 2;
+    for (const s of itemsIn(cont)) {
+      if (s === el) continue;
+      const r = s.getBoundingClientRect(), sm = r.top + r.height / 2, after = !!(el.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING);
+      if ((after && mid > sm) || (!after && mid < sm)) {
+        const before = el.getBoundingClientRect().top;
+        if (after) el.before(s); else el.after(s);   // se mueve el vecino (no el agarre) para no perder la captura del puntero
+        const layoutTop = el.getBoundingClientRect().top - dy;
+        dy = before - layoutTop; startY = ev.clientY - dy; el.style.transform = `translateY(${dy}px)`;
+        break;
+      }
+    }
+    if (ev.clientY < 90) window.scrollBy(0, -12); else if (ev.clientY > innerHeight - 110) window.scrollBy(0, 12);
+  };
+  const end = ev => {
+    h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', end); h.removeEventListener('pointercancel', end);
+    el.style.transform = ''; el.classList.remove('drag'); document.body.classList.remove('dragging'); dragging = false;
+    reorder(cont.dataset.sort, itemsIn(cont).map(x => x.dataset.id));
+  };
+  h.addEventListener('pointermove', move); h.addEventListener('pointerup', end); h.addEventListener('pointercancel', end);
+});
+document.addEventListener('keydown', e => {
+  const h = e.target.closest && e.target.closest('.grip'); if (!h || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  const el = h.parentElement.closest('[data-id]'), cont = el && el.parentElement; if (!cont || !cont.dataset.sort) return;
+  e.preventDefault();
+  const ids = itemsIn(cont).map(x => x.dataset.id), i = ids.indexOf(el.dataset.id), j = e.key === 'ArrowUp' ? i - 1 : i + 1;
+  if (j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  const id = el.dataset.id; reorder(cont.dataset.sort, ids);
+  const nb = document.querySelector(`[data-id="${CSS.escape(id)}"] .grip`); if (nb) nb.focus();
 });
 
 /* ---------- Ciclo de vida ---------- */

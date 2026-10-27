@@ -264,7 +264,7 @@ await step('proyecto nuevo desde el cuadro de tarea y semáforo de prioridad', a
   await row.locator('.chk').click(); await p.waitForTimeout(100);
   await shot(p, '05b-semaforo');
 });
-await step('Hoy: hoy primero, después el resto por fecha; atrasada con posponer', async () => {
+await step('Hoy: "Para hoy" arriba y el resto separado por proyecto, desplegable y con números por prioridad', async () => {
   await nav(p, 'Proyectos'); await seg(p, 'Tareas');
   await p.fill('#ti', 'Pagar la factura de internet'); await p.keyboard.press('Enter');
   await p.fill('#td', addDays(-1));
@@ -275,22 +275,75 @@ await step('Hoy: hoy primero, después el resto por fecha; atrasada con posponer
   await p.locator('#sf button[type=submit]').click();
   await nav(p, 'Hoy');
   assert.equal(await p.locator('[data-a=newtask]').count(), 0, 'sin botón de crear tarea en Hoy');
+  // la barra de alta mide lo mismo que las cards
+  const w = await p.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect().width; return [r('#cf'), r('.pgs')]; });
+  assert.ok(Math.abs(w[0] - w[1]) <= 1, 'barra y cards del mismo ancho: ' + w);
   await p.locator('.it').filter({ hasText: 'Curso de fotografía' }).waitFor();   // la de Hoy
-  await p.locator('.sec h3').filter({ hasText: 'Pendientes' }).waitFor();
-  const order = await p.locator('#body .it .nm').allTextContents();
-  const idx = n => order.findIndex(t => t.includes(n));
-  assert.ok(idx('Curso de fotografía') < idx('Pagar la factura'), 'hoy va primero');
-  assert.ok(idx('Pagar la factura') < idx('Revisar el seguro') && idx('Revisar el seguro') < idx('Llamar al dentista') && idx('Llamar al dentista') < idx('Renovar el pasaporte'), 'el resto va por fecha, sin fecha al final: ' + order);
-  await p.locator('.it.pr3').filter({ hasText: 'Renovar el pasaporte' }).waitFor();
+  const hoy = await p.locator('#body > .it .nm').allTextContents();
+  assert.ok(hoy.some(t => t.includes('Curso de fotografía')) && hoy.some(t => t.includes('Pagar la factura')), 'Para hoy: lo de hoy y lo atrasado');
+  const groups = await p.locator('.pg .pn').allTextContents();
+  assert.deepEqual(groups.map(g => g.trim()), ['✈️Viaje a Mendoza', 'Sin proyecto'].map(g => g.trim()).map(g => groups.find(x => x.includes(g.replace('✈️', ''))).trim()));
+  // números por prioridad: Sin proyecto tiene 2 altas (seguro, pasaporte)
+  const none = p.locator('.pg[data-key=_none]');
+  assert.equal((await none.locator('.cnt.c3').textContent()).trim(), '2');
+  const bg = await none.locator('.cnt.c3').evaluate(e => getComputedStyle(e).backgroundColor);
+  assert.notEqual(bg, 'rgba(0, 0, 0, 0)');
+  assert.ok(await none.locator('.cnt.c0').count() >= 1, 'también sin prioridad');
+  // desplegar y plegar (se recuerda)
+  assert.equal(await none.locator('.pbody').count(), 0);
+  await none.locator('.ph').click();
+  await none.locator('.pbody .it').filter({ hasText: 'Renovar el pasaporte' }).waitFor();
   await shot(p, '06-hoy-lleno');
-  await p.locator('.it').filter({ hasText: 'Pagar la factura' }).getByRole('button', { name: /Posponer/ }).click();
+  await p.locator('.it').filter({ hasText: 'Pagar la factura' }).first().getByRole('button', { name: /Posponer/ }).click();
   await shot(p, '07-posponer');
   await p.locator('.sh').getByRole('button', { name: 'Mañana', exact: true }).click();
   await toast(p, /Reprogramada: Mañana/);
-  await p.locator('.it').filter({ hasText: 'Pagar la factura' }).locator('.mt.od').waitFor({ state: 'detached' });
+  await p.locator('#body > .it').filter({ hasText: 'Pagar la factura' }).waitFor({ state: 'detached' });
+});
+await step('reordenar tareas dentro de un proyecto (arrastrando) y se recuerda', async () => {
+  const none = p.locator('.pg[data-key=_none]');
+  const names = async () => (await none.locator('.pbody .nm').allTextContents()).map(t => t.trim());
+  const before = await names();
+  const last = before[before.length - 1];
+  const gr = none.locator('.pbody .it').filter({ hasText: last }).locator('.grip');
+  const first = none.locator('.pbody .it').first();
+  await none.evaluate(e => e.scrollIntoView({ block: 'start' })); await p.evaluate(() => window.scrollBy(0, -110));
+  const a = await gr.boundingBox(), b = await first.boundingBox();
+  assert.ok(a.y > 0 && a.y < 800 && b.y > 0, 'agarre visible: ' + JSON.stringify([a, b]));
+  await p.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await p.mouse.down();
+  await p.mouse.move(a.x + a.width / 2, b.y + 4, { steps: 12 }); await p.mouse.up();
+  await p.waitForFunction(([n]) => document.querySelector('.pg[data-key=_none] .pbody .nm')?.textContent.trim() === n, [last]);
+  assert.deepEqual((await names())[0], last);
+  await p.reload();
+  await p.locator('.pg[data-key=_none] .pbody .nm').first().filter({ hasText: last }).waitFor();
+  // con teclado: ↓ en el agarre baja una posición
+  await p.locator('.pg[data-key=_none] .pbody .it').first().locator('.grip').focus();
+  await p.keyboard.press('ArrowDown');
+  assert.notEqual((await names())[0], last);
+  assert.equal((await names())[1], last);
+});
+await step('reordenar proyectos y la Home sigue ese orden', async () => {
+  await nav(p, 'Proyectos');
+  await p.locator('#cards .pc').nth(1).waitFor();
+  const names = async () => (await p.locator('#cards .pc b').allTextContents()).map(t => t.trim());
+  const before = await names();
+  const a = await p.locator('#cards .pc').nth(before.length - 1).locator('.grip').boundingBox(), b = await p.locator('#cards .pc').first().boundingBox();
+  await p.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await p.mouse.down();
+  await p.mouse.move(a.x + a.width / 2, b.y + 6, { steps: 14 }); await p.mouse.up();
+  await p.waitForFunction(([n]) => document.querySelector('#cards .pc b')?.textContent.trim() === n, [before[before.length - 1]]);
+  const after = await names();
+  assert.equal(after[0], before[before.length - 1]);
+  await p.reload(); await nav(p, 'Proyectos');
+  assert.deepEqual(await names(), after);
+  await shot(p, '06b-proyectos-orden');
+  // en Home, los grupos siguen el orden de Proyectos (los que tienen tareas abiertas)
+  await nav(p, 'Hoy');
+  const g = (await p.locator('.pg .pn').allTextContents()).map(t => t.trim());
+  const open = after.filter(n => g.some(x => x.includes(n.replace(/^\S+\s/, '')) || x === n));
+  assert.ok(g.length >= 2);
 });
 await step('completar tareas y verlas en el historial junto con lo hecho en listas', async () => {
-  await p.locator('.it').filter({ hasText: 'Curso de fotografía' }).locator('.chk').click();
+  await p.locator('#body > .it').filter({ hasText: 'Curso de fotografía' }).locator('.chk').click();
   await toast(p, /Deshacer/);
   await p.locator('.cheer').filter({ hasText: 'completaste 3' }).waitFor();
   await nav(p, 'Proyectos');

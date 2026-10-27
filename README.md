@@ -73,8 +73,8 @@ Notas: Google entrega una llave que dura ~1 hora; pasado ese tiempo la Agenda te
 
 ```bash
 npm run sync-shared     # copia shared/merge.js a web/ y server/ (hacelo tras editarlo)
-node scripts/test.mjs   # 24 pruebas: datos, cifrado de avisos (con el ejemplo oficial del RFC 8291) y servidor
-node scripts/e2e.mjs    # 23 pasos en un navegador real (E2E_CSP=1 aplica los encabezados de seguridad reales)
+node scripts/test.mjs   # 25 pruebas: datos, cifrado de avisos (con el ejemplo oficial del RFC 8291) y servidor
+node scripts/e2e.mjs    # 26 pasos en un navegador real (E2E_CSP=1 aplica los encabezados de seguridad reales)
 ```
 
 Lo que **no** se puede probar sin cuentas reales: el consentimiento de Google y la entrega real de avisos por los servidores de Apple/Google (se prueban con simulaciones y con el cifrado verificado contra el RFC).

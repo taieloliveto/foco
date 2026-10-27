@@ -87,6 +87,8 @@ const toast = async (page, re) => page.locator('#t').filter({ hasText: re }).wai
 const ymdL = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const addDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return ymdL(d); };
 const pw = 'clave-segura-1';
+const nav = (page, n) => page.locator('#nv').getByRole('button', { name: n, exact: true }).click();
+const seg = (page, n) => page.locator('#v .seg').getByRole('button', { name: n, exact: true }).click();
 
 console.log('Teléfono A');
 const A = await newDevice();
@@ -136,7 +138,7 @@ await step('Bandeja: convertir una idea en tarea concreta con subtareas, fecha, 
   await p.fill('#tm', '10:30');
   await p.locator('#tm').dispatchEvent('change');
   await p.selectOption('#tr', '1h');
-  await p.getByRole('button', { name: 'Alta' }).click();
+  await p.getByRole('button', { name: 'Alta', exact: true }).click();
   await p.fill('#ns', 'Buscar la póliza');
   await p.keyboard.press('Enter');
   await p.fill('#ns', 'Llamar a la aseguradora');
@@ -186,71 +188,104 @@ await step('Listas: agregar ítems, marcar como hecho, nota y convertir a tarea'
   await p.locator('#sf button[type=submit]').click();
   await shot(p, '04-lista');
 });
-await step('Tareas: alta rápida entiende "mañana a las 18" y crea aviso', async () => {
-  await p.getByRole('button', { name: 'Tareas' }).click();
+await step('Tareas: alta rápida abre el cuadro con fecha, hora y aviso ya entendidos', async () => {
+  await nav(p, 'Proyectos');
+  await p.locator('.seg button[aria-pressed=true]').filter({ hasText: 'Proyectos' }).waitFor();   // por defecto: Proyectos
+  await seg(p, 'Tareas');
   await p.fill('#ti', 'Llamar al dentista mañana a las 18');
-  await p.keyboard.press('Enter');
+  await p.getByRole('button', { name: 'Crear tarea' }).click();
+  assert.equal(await p.inputValue('#tt'), 'Llamar al dentista');
+  assert.equal(await p.inputValue('#td'), addDays(1)); assert.equal(await p.inputValue('#tm'), '18:00'); assert.equal(await p.inputValue('#tr'), 'at');
+  const labs = await p.locator('#sf .lab, #sf #tt').evaluateAll(els => els.map(e => e.id === 'tt' ? 'Nombre' : e.textContent));
+  assert.deepEqual(labs.slice(0, 5), ['Nombre', 'Proyecto', 'Cuándo', 'Prioridad', 'Aviso']);
+  await p.locator('#sf button[type=submit]').click();
   const row = p.locator('.it').filter({ hasText: 'Llamar al dentista' });
   await row.waitFor();
   await row.locator('.mt').filter({ hasText: 'Mañana 18:00' }).waitFor();
   await row.locator('.mt').filter({ hasText: '🔔' }).waitFor();
   await p.fill('#ti', 'Comprar 2 manzanas');
   await p.keyboard.press('Enter');
-  const apples = p.locator('.it').filter({ hasText: 'Comprar 2 manzanas' });
-  await apples.waitFor();
-  assert.equal(await apples.locator('.mt').filter({ hasText: /\d{2}:\d{2}/ }).count(), 0, 'no confunde cantidades con horas');
+  assert.equal(await p.inputValue('#tm'), '', 'no confunde cantidades con horas'); assert.equal(await p.inputValue('#td'), '');
+  await p.locator('#sf button[type=submit]').click();
+  await p.locator('.it').filter({ hasText: 'Comprar 2 manzanas' }).waitFor();
   await p.locator('.sec h3').filter({ hasText: 'Sin fecha' }).waitFor();
   await shot(p, '05-tareas');
 });
-await step('Proyectos: crear, agregar tareas y ver avance', async () => {
-  await p.getByRole('button', { name: 'Proyectos' }).click();
+await step('Proyectos: crear, agregar tareas eligiendo proyecto y ver avance', async () => {
+  await seg(p, 'Proyectos');
   await p.getByRole('button', { name: '+ Nuevo proyecto' }).click();
   await p.fill('#se', '✈️');
   await p.fill('#sn', 'Viaje a Mendoza');
   await p.getByRole('button', { name: 'Crear proyecto' }).click();
   await p.locator('#pt').filter({ hasText: 'Viaje a Mendoza' }).waitFor();
-  await p.fill('#pi', 'Reservar alojamiento');
-  await p.keyboard.press('Enter');
-  await p.fill('#pi', 'Sacar pasajes');
-  await p.keyboard.press('Enter');
+  for (const t of ['Reservar alojamiento', 'Sacar pasajes']) {
+    await p.fill('#pi', t);
+    await p.keyboard.press('Enter');
+    assert.match(await p.locator('#tp option:checked').textContent(), /Viaje a Mendoza/);
+    await p.locator('#sf button[type=submit]').click();
+    await p.locator('.it').filter({ hasText: t }).waitFor();
+  }
   await p.locator('.it').filter({ hasText: 'Sacar pasajes' }).locator('.chk').click();
   await p.locator('.sec h3').filter({ hasText: 'Hechas · 1' }).waitFor();
   await p.getByRole('button', { name: 'Volver a proyectos' }).click();
   await p.locator('.card').filter({ hasText: 'Viaje a Mendoza' }).filter({ hasText: '1 pendientes · 2 en total' }).waitFor();
+  // todas las cards miden lo mismo
+  const hs = await p.locator('#cards .card').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().height)));
+  assert.ok(hs.length >= 1 && hs.every(h => h === hs[0]), 'cards de distinto tamaño: ' + hs);
 });
-await step('Hoy: tarea de hoy, atrasada con posponer, y "cuando tengas energía"', async () => {
-  // una tarea atrasada y una importante sin fecha, vía el formulario
-  await p.getByRole('button', { name: 'Hoy', exact: true }).first().click();
-  await p.locator('[data-a=newtask]').click();
-  await p.fill('#tt', 'Pagar la factura de internet');
+await step('proyecto nuevo desde el cuadro de tarea y semáforo de prioridad', async () => {
+  await seg(p, 'Tareas');
+  await p.fill('#ti', 'Probar el semáforo');
+  await p.keyboard.press('Enter');
+  await p.selectOption('#tp', '__new');
+  await p.fill('#sn', 'Casa');
+  await p.getByRole('button', { name: 'Crear proyecto' }).click();
+  assert.match(await p.locator('#tp option:checked').textContent(), /Casa/);
+  assert.equal(await p.inputValue('#tt'), 'Probar el semáforo');
+  await p.getByRole('button', { name: 'Media', exact: true }).click();
+  await p.locator('#sf button[type=submit]').click();
+  const row = p.locator('.it.pr2').filter({ hasText: 'Probar el semáforo' });
+  await row.locator('.mt.pp2').filter({ hasText: 'Media' }).waitFor();
+  const col = await row.evaluate(e => getComputedStyle(e).borderLeftColor);
+  assert.notEqual(col, 'rgba(0, 0, 0, 0)');
+  await row.locator('.chk').click(); await p.waitForTimeout(100);
+  await shot(p, '05b-semaforo');
+});
+await step('Hoy: hoy primero, después el resto por fecha; atrasada con posponer', async () => {
+  await nav(p, 'Proyectos'); await seg(p, 'Tareas');
+  await p.fill('#ti', 'Pagar la factura de internet'); await p.keyboard.press('Enter');
   await p.fill('#td', addDays(-1));
   await p.locator('#td').dispatchEvent('change');
   await p.locator('#sf button[type=submit]').click();
-  await p.locator('.sec h3').filter({ hasText: 'Atrasadas · 1' }).waitFor();
-  await p.locator('[data-a=newtask]').click();
-  await p.fill('#tt', 'Renovar el pasaporte');
-  await p.locator('.chip[data-v=""]').click();
-  await p.getByRole('button', { name: 'Alta' }).click();
+  await p.fill('#ti', 'Renovar el pasaporte'); await p.keyboard.press('Enter');
+  await p.getByRole('button', { name: 'Alta', exact: true }).click();
   await p.locator('#sf button[type=submit]').click();
-  await p.locator('.sec h3').filter({ hasText: 'Cuando tengas energía' }).waitFor();
+  await nav(p, 'Hoy');
+  assert.equal(await p.locator('[data-a=newtask]').count(), 0, 'sin botón de crear tarea en Hoy');
   await p.locator('.it').filter({ hasText: 'Curso de fotografía' }).waitFor();   // la de Hoy
+  await p.locator('.sec h3').filter({ hasText: 'Pendientes' }).waitFor();
+  const order = await p.locator('#body .it .nm').allTextContents();
+  const idx = n => order.findIndex(t => t.includes(n));
+  assert.ok(idx('Curso de fotografía') < idx('Pagar la factura'), 'hoy va primero');
+  assert.ok(idx('Pagar la factura') < idx('Revisar el seguro') && idx('Revisar el seguro') < idx('Llamar al dentista') && idx('Llamar al dentista') < idx('Renovar el pasaporte'), 'el resto va por fecha, sin fecha al final: ' + order);
+  await p.locator('.it.pr3').filter({ hasText: 'Renovar el pasaporte' }).waitFor();
   await shot(p, '06-hoy-lleno');
   await p.locator('.it').filter({ hasText: 'Pagar la factura' }).getByRole('button', { name: /Posponer/ }).click();
   await shot(p, '07-posponer');
-  await p.getByRole('button', { name: /Mañana/ }).click();
+  await p.locator('.sh').getByRole('button', { name: 'Mañana', exact: true }).click();
   await toast(p, /Reprogramada: Mañana/);
-  await p.locator('.sec h3').filter({ hasText: 'Atrasadas' }).waitFor({ state: 'detached' });
+  await p.locator('.it').filter({ hasText: 'Pagar la factura' }).locator('.mt.od').waitFor({ state: 'detached' });
 });
 await step('completar tareas y verlas en el historial junto con lo hecho en listas', async () => {
   await p.locator('.it').filter({ hasText: 'Curso de fotografía' }).locator('.chk').click();
   await toast(p, /Deshacer/);
-  await p.locator('.cheer').filter({ hasText: 'completaste 2' }).waitFor();
-  await p.getByRole('button', { name: 'Tareas' }).click();
-  await p.getByRole('button', { name: 'Hecho', exact: true }).click();
+  await p.locator('.cheer').filter({ hasText: 'completaste 3' }).waitFor();
+  await nav(p, 'Proyectos');
+  await seg(p, 'Hecho');
   await p.locator('.it.done').filter({ hasText: 'Curso de fotografía' }).waitFor();
   await p.locator('.it.done').filter({ hasText: 'Curso de Excel' }).filter({ hasText: 'Terminado' }).waitFor();
   await p.locator('.it.done').filter({ hasText: 'Sacar pasajes' }).waitFor();
-  await p.locator('.sec h3').filter({ hasText: 'Hoy · 3' }).waitFor();
+  await p.locator('.sec h3').filter({ hasText: 'Hoy · 4' }).waitFor();
   await shot(p, '08-historial');
   // reabrir desde el historial
   await p.locator('.it.done').filter({ hasText: 'Curso de fotografía' }).locator('.chk').click();
@@ -341,7 +376,7 @@ await step('sincronización: otro dispositivo ve todo', async () => {
   assert.ok(Object.values(d.tasks).some(t => t.t === 'Llamar al dentista' && t.ev === 'new1'));
   assert.equal(Object.values(d.lists).filter(l => !l.del)[0].n, 'Para aprender');
   assert.equal(Object.values(d.projects)[0].n, 'Viaje a Mendoza');
-  await B.page.getByRole('button', { name: 'Tareas' }).click();
+  await nav(B.page, 'Proyectos'); await seg(B.page, 'Tareas');
   await B.page.locator('.it').filter({ hasText: 'Llamar al dentista' }).waitFor();
   await B.ctx.close();
 });
@@ -353,8 +388,8 @@ await step('modo oscuro y sin desbordes horizontales', async () => {
   await D.page.locator('form#af button[type=submit]').click();
   await D.page.locator('#hi').waitFor();
   await shot(D.page, '13-hoy-oscuro');
-  for (const tab of ['Hoy', 'Tareas', 'Listas', 'Agenda']) {
-    await D.page.getByRole('button', { name: tab, exact: true }).first().click();
+  for (const tab of ['Hoy', 'Proyectos', 'Listas', 'Agenda']) {
+    await nav(D.page, tab);
     const over = await D.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     assert.ok(over <= 0, `desborde horizontal en ${tab}: ${over}`);
   }

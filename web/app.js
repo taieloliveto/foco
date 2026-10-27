@@ -46,7 +46,7 @@ const saveL = () => { try { localStorage.setItem(LKEY, JSON.stringify(L)); } cat
 
 let view = 'auth', sheet = null, busy = false, st = 'ok', rev = 0, cur = '', curP = '';
 let authMode = 'login', authErr = '', authEmail = S.email, authPass = '', authName = '';
-let installEvt = null, tfilter = 'open', histN = 40, evErr = '', evBusy = false;
+let installEvt = null, tfilter = 'proj', histN = 40, evErr = '', evBusy = false;
 const D = () => S.data;
 
 /* ---------- Consultas ---------- */
@@ -63,11 +63,11 @@ const curList = () => { const l = D().lists[cur]; return l && !l.del ? l : null;
 const curProj = () => proj(curP);
 const cmp = (a, b) => (a.d || '9').localeCompare(b.d || '9') || (a.tm || '99').localeCompare(b.tm || '99') || b.p - a.p || a.c - b.c;
 const KINDS = {
-  wish: { e: '🎁', n: 'Deseos', ph: 'Mis deseos', done: 'Conseguido', add: 'Agregar un deseo…' },
-  course: { e: '🎓', n: 'Cursos', ph: 'Cursos para hacer', done: 'Terminado', add: 'Agregar un curso…' },
-  book: { e: '📚', n: 'Libros', ph: 'Libros para leer', done: 'Leído', add: 'Agregar un libro…' },
-  place: { e: '📍', n: 'Lugares', ph: 'Lugares para ir', done: 'Visitado', add: 'Agregar un lugar…' },
-  custom: { e: '📝', n: 'Otra', ph: 'Mi lista', done: 'Hecho', add: 'Agregar…' }
+  wish: { e: '🎁', n: 'Deseos', ph: 'Mis deseos', done: 'Conseguido', add: 'Agregar algo…' },
+  course: { e: '🎓', n: 'Cursos', ph: 'Cursos para hacer', done: 'Terminado', add: 'Agregar algo…' },
+  book: { e: '📚', n: 'Libros', ph: 'Libros para leer', done: 'Leído', add: 'Agregar algo…' },
+  place: { e: '📍', n: 'Lugares', ph: 'Lugares para ir', done: 'Visitado', add: 'Agregar algo…' },
+  custom: { e: '📝', n: 'Otra', ph: 'Mi lista', done: 'Hecho', add: 'Agregar algo…' }
 };
 const EMOS = ['🎁', '🎓', '📚', '📍', '🎬', '🎧', '🍽️', '✈️', '🏠', '💡', '🛒', '💪', '🎮', '🌱', '🎨', '💼'];
 
@@ -163,13 +163,6 @@ function capture(text) {
   if (n) touch();
   return n;
 }
-function quickTask(text, base = {}) {
-  const w = parseWhen(text);
-  if (!w.t) return null;
-  const t = newTask({ ...base, t: (w.t[0].toUpperCase() + w.t.slice(1)).slice(0, 200), d: w.d || base.d || '', tm: w.tm, rk: w.tm ? 'at' : '' });
-  touch();
-  return { t, w };
-}
 const whenText = t => t.d ? `${dayLabel(t.d).toLowerCase()}${t.tm ? ' ' + t.tm : ''}${t.r ? ' · 🔔' : ''}` : '';
 function setDone(id, v) {
   const t = D().tasks[id]; if (!t) return;
@@ -246,7 +239,7 @@ ${CFG.API_URL ? '' : `<label class="f">URL del servidor<input type="url" data-au
 </form></div>`;
 }
 
-const capForm = (ph, id, inp, cls = '') => `<form id="${id}" class="qa ${cls}" autocomplete="off"><div class="qr"><input id="${inp}" class="in" type="text" placeholder="${esc(ph)}" enterkeyhint="done" autocomplete="off" autocapitalize="sentences" aria-label="${esc(ph)}"><button class="btn" type="submit" aria-label="Guardar">+</button></div></form>`;
+const capForm = (ph, id, inp, cls = '', btn = '+', aria = 'Guardar') => `<form id="${id}" class="qa ${cls}" autocomplete="off"><div class="qr"><input id="${inp}" class="in" type="text" placeholder="${esc(ph)}" enterkeyhint="done" autocomplete="off" autocapitalize="sentences" aria-label="${esc(ph)}"><button class="btn" type="submit" aria-label="${esc(aria)}">${btn}</button></div></form>`;
 
 function vToday() {
   const d = new Date();
@@ -264,24 +257,27 @@ function taskRow(t, o = {}) {
   if (t.ev) meta.push('<span class="mt" title="En Google Calendar">📅</span>');
   if (subs.length) meta.push(`<span class="mt">☑ ${sd}/${subs.length}</span>`);
   if (p && !o.noProject) meta.push(`<span class="mt">${p.e ? esc(p.e) + ' ' : ''}${esc(p.n)}</span>`);
+  if (t.p && !(t.s === 'done')) meta.unshift(`<span class="mt pp${t.p}">${['', 'Baja', 'Media', 'Alta'][t.p]}</span>`);
   const done = t.s === 'done';
-  return `<div class="it${done ? ' done' : ''}"><button class="chk p${t.p}" data-a="tdone" data-id="${esc(t.id)}" aria-pressed="${done}" aria-label="${done ? 'Reabrir' : 'Completar'} ${esc(t.t)}"><span class="box" aria-hidden="true"></span></button><button class="main" data-a="topen" data-id="${esc(t.id)}"><span class="nm">${esc(t.t)}</span>${meta.length ? `<span class="meta">${meta.join('')}</span>` : ''}</button>${o.snz ? `<button class="more" data-a="tsnz" data-id="${esc(t.id)}" aria-label="Posponer ${esc(t.t)}">⏰</button>` : ''}</div>`;
+  return `<div class="it pr${done ? 0 : t.p}${done ? ' done' : ''}"><button class="chk p${t.p}" data-a="tdone" data-id="${esc(t.id)}" aria-pressed="${done}" aria-label="${done ? 'Reabrir' : 'Completar'} ${esc(t.t)}"><span class="box" aria-hidden="true"></span></button><button class="main" data-a="topen" data-id="${esc(t.id)}"><span class="nm">${esc(t.t)}</span>${meta.length ? `<span class="meta">${meta.join('')}</span>` : ''}</button>${o.snz ? `<button class="more" data-a="tsnz" data-id="${esc(t.id)}" aria-label="Posponer ${esc(t.t)}">⏰</button>` : ''}</div>`;
 }
 const secH = (t, extra = '') => `<div class="sec"><h3>${t}</h3>${extra}</div>`;
 const fmtEv = e => e.allDay ? 'Todo el día' : `${hm(e.s)}–${hm(e.e)}`;
 
 function bodyToday() {
-  const td = today(), O = openT();
-  const over = O.filter(t => t.d && t.d < td).sort(cmp), tod = O.filter(t => t.d === td).sort(cmp);
-  const star = O.filter(t => !t.d && t.p === 3).sort(cmp).slice(0, 3);
+  const td = today(), O = openT().sort(cmp);
+  const tod = O.filter(t => t.d === td), rest = O.filter(t => t.d !== td);
   const doneToday = top().filter(t => t.s === 'done' && ymd(new Date(t.dn)) === td).length;
   const ib = inbox().length;
   let h = '';
   if (ib) h += `<button class="card inb" data-a="inbox"><b>📥 Bandeja</b><small>${ib} ${ib === 1 ? 'idea' : 'ideas'} sin clasificar · tocá para convertirlas en acciones</small></button>`;
-  if (over.length) h += secH(`Atrasadas · ${over.length}`) + '<p class="mut small hint">Sin culpa: hacé una, o reprogramá con ⏰.</p>' + over.map(t => taskRow(t, { snz: 1 })).join('');
-  h += secH(`Para hoy${tod.length ? ' · ' + tod.length : ''}`, '<button class="mini" data-a="newtask" data-d="today">+ Tarea</button>');
+  h += secH(`Para hoy${tod.length ? ' · ' + tod.length : ''}`);
   h += tod.length ? tod.map(t => taskRow(t, { snz: 1 })).join('') : `<div class="empty small-e"><p class="mut">${doneToday ? '¡Terminaste lo de hoy! 🎉' : 'No tenés nada agendado para hoy.'}</p></div>`;
-  if (star.length) h += secH('Cuando tengas energía') + star.map(t => taskRow(t)).join('');
+  if (rest.length) {
+    h += secH(`Pendientes · ${rest.length}`) + (rest.some(t => t.d && t.d < td) ? '<p class="mut small hint">Sin culpa: lo atrasado va en rojo. Hacelo o reprogramalo con ⏰.</p>' : '');
+    h += rest.slice(0, 20).map(t => taskRow(t, { snz: t.d && t.d < td })).join('');
+    if (rest.length > 20) h += `<button class="btn ghost" data-a="alltasks" style="margin-top:12px">Ver todas (${rest.length})</button>`;
+  }
   if (GCal.enabled()) {
     const evs = todayEvents();
     if (evs.length) h += secH('Próximos eventos') + evs.map(e => `<div class="ev"><span class="evt">${fmtEv(e)}</span><span class="nm">${esc(e.t)}</span></div>`).join('');
@@ -297,16 +293,16 @@ function todayEvents() {
 }
 
 function vTasks() {
-  return `<div class="bar"><h1>Tareas</h1>${syncBadge()}</div>
-<div class="seg three" role="group" aria-label="Ver"><button data-a="tf" data-f="open" aria-pressed="${tfilter === 'open'}">Pendientes</button><button data-a="tf" data-f="proj" aria-pressed="${tfilter === 'proj'}">Proyectos</button><button data-a="tf" data-f="done" aria-pressed="${tfilter === 'done'}">Hecho</button></div>
-${tfilter === 'open' ? capForm('Nueva tarea… (ej: llamar al dentista mañana 18:30)', 'tf-form', 'ti') : ''}
+  return `<div class="bar"><h1>Proyectos</h1>${syncBadge()}</div>
+<div class="seg three" role="group" aria-label="Ver"><button data-a="tf" data-f="proj" aria-pressed="${tfilter === 'proj'}">Proyectos</button><button data-a="tf" data-f="open" aria-pressed="${tfilter === 'open'}">Tareas</button><button data-a="tf" data-f="done" aria-pressed="${tfilter === 'done'}">Hecho</button></div>
+${tfilter === 'open' ? capForm('Nueva tarea… (ej: llamar al dentista mañana 18:30)', 'tf-form', 'ti', '', 'Crear', 'Crear tarea') : ''}
 <div id="body"></div>`;
 }
 function bodyTasks() {
   if (tfilter === 'proj') {
     const P = projects();
     let h = P.map(p => { const all = top().filter(t => t.pr === p.id), d = all.filter(t => t.s === 'done').length;
-      return `<button class="card" data-a="oproj" data-id="${esc(p.id)}"><b>${nm(p)}</b><small>${all.length ? `${all.length - d} pendientes · ${all.length} en total` : 'Sin tareas'}</small>${all.length ? `<div class="pbar" aria-hidden="true"><i style="width:${Math.round(d / all.length * 100)}%"></i></div>` : ''}</button>`; }).join('');
+      return `<button class="card" data-a="oproj" data-id="${esc(p.id)}"><b>${nm(p)}</b><small>${all.length ? `${all.length - d} pendientes · ${all.length} en total` : 'Sin tareas'}</small><div class="pbar" aria-hidden="true"><i style="width:${all.length ? Math.round(d / all.length * 100) : 0}%"></i></div></button>`; }).join('');
     if (!P.length) h = '<div class="empty"><div class="big" aria-hidden="true">🗂️</div><h2>Todavía no tenés proyectos</h2><p class="mut">Agrupá tareas relacionadas: “Mudanza”, “Trámites”, “Viaje”…</p></div>';
     return `<div id="cards">${h}</div><button class="btn newbtn" data-a="newproj">+ Nuevo proyecto</button>`;
   }
@@ -347,7 +343,7 @@ function vLists() { return `<div class="bar"><h1>Mis listas</h1>${syncBadge()}</
 function bodyLists() {
   const L2 = lists();
   let h = L2.length ? '<div id="cards">' + L2.map(l => { const it = itemsOf(l), d = it.filter(i => i.d).length;
-    return `<button class="card" data-a="olist" data-id="${esc(l.id)}"><b>${nm(l)}</b><small>${it.length ? `${it.length - d} pendientes · ${d} ${KINDS[l.k].done.toLowerCase()}s`.replace('hechos', 'hechos') : 'Vacía'}</small>${it.length ? `<div class="pbar" aria-hidden="true"><i style="width:${Math.round(d / it.length * 100)}%"></i></div>` : ''}</button>`; }).join('') + '</div>'
+    return `<button class="card" data-a="olist" data-id="${esc(l.id)}"><b>${nm(l)}</b><small>${it.length ? `${it.length - d} pendientes · ${d} ${KINDS[l.k].done.toLowerCase()}s`.replace('hechos', 'hechos') : 'Vacía'}</small><div class="pbar" aria-hidden="true"><i style="width:${it.length ? Math.round(d / it.length * 100) : 0}%"></i></div></button>`; }).join('') + '</div>'
     : '<div class="empty"><div class="big" aria-hidden="true">📋</div><h2>Todavía no tenés listas</h2><p class="mut">Deseos, cursos, libros, lugares… o las que inventes.</p></div>';
   return h + '<button class="btn newbtn" data-a="newlist">+ Nueva lista</button>';
 }
@@ -364,7 +360,7 @@ function bodyList() {
   return h;
 }
 function vProject() {
-  return `<div class="top"><button class="icon" data-a="back-proj" aria-label="Volver a proyectos">‹</button><div class="ttl"><b id="pt"></b><small id="ps"></small></div>${syncBadge()}<button class="icon" data-a="pmenu" aria-label="Opciones del proyecto">⋯</button></div>${capForm('Nueva tarea del proyecto…', 'pf', 'pi')}<div id="body"></div>`;
+  return `<div class="top"><button class="icon" data-a="back-proj" aria-label="Volver a proyectos">‹</button><div class="ttl"><b id="pt"></b><small id="ps"></small></div>${syncBadge()}<button class="icon" data-a="pmenu" aria-label="Opciones del proyecto">⋯</button></div>${capForm('Nueva tarea del proyecto…', 'pf', 'pi', '', 'Crear', 'Crear tarea')}<div id="body"></div>`;
 }
 function bodyProject() {
   const p = curProj(); if (!p) return '';
@@ -464,17 +460,18 @@ const chipsDate = d => [['Hoy', 'today', today()], ['Mañana', 'tom', addD(today
 function taskSheet() {
   const x = sheet.draft, isNew = !x.id, opts = rkOptions(x.d, x.tm);
   if (!opts.includes(x.rk)) x.rk = '';
-  const P = projects(), subs = isNew ? x.subs.map((t, i) => ({ id: String(i), t, s: 'todo' })) : subsOf(x.id);
+  const P = projects(); if (x.pr && proj(x.pr) && !P.some(p => p.id === x.pr)) P.push(proj(x.pr));
+  const subs = isNew ? x.subs.map((t, i) => ({ id: String(i), t, s: 'todo' })) : subsOf(x.id);
   const g = GCal.enabled() ? (x.evl ? `<a class="rowb" href="${esc(x.evl)}" target="_blank" rel="noopener">📅 Ver el bloque en Google Calendar ↗</a>` : x.d && x.tm ? `<div class="two"><select id="tdur" class="in" aria-label="Duración del bloque">${[15, 30, 45, 60, 90, 120].map(m => `<option value="${m}"${m === (x.dur || 60) ? ' selected' : ''}>${m < 60 ? m + ' min' : m / 60 + (m === 60 ? ' hora' : ' horas')}</option>`).join('')}</select><button type="button" class="btn ghost" data-a="blk">📅 Bloquear tiempo</button></div>` : '<p class="mut small">Poné fecha y hora para bloquear tiempo en Google Calendar.</p>') : '';
   return `<form id="sf" class="sh" role="dialog" aria-modal="true" aria-label="${isNew ? 'Nueva tarea' : 'Tarea'}"><h2>${isNew ? 'Nueva tarea' : 'Tarea'}</h2>
 <input id="tt" class="in" type="text" maxlength="200" value="${esc(x.t)}" placeholder="¿Qué hay que hacer?" autocomplete="off" aria-label="Título">
-<textarea id="tn" class="in ta" maxlength="2000" rows="2" placeholder="Notas o primer paso (opcional)" aria-label="Notas">${esc(x.n)}</textarea>
+<p class="lab">Proyecto</p><select id="tp" class="in" aria-label="Proyecto"><option value="">Sin proyecto</option>${P.map(p => `<option value="${esc(p.id)}"${p.id === x.pr ? ' selected' : ''}>${p.e ? esc(p.e) + ' ' : ''}${esc(p.n)}</option>`).join('')}<option value="__new">＋ Nuevo proyecto…</option></select>
 <p class="lab">Cuándo</p><div class="chips wrapc" role="group">${chipsDate(x.d)}</div>
 <div class="two"><input id="td" class="in" type="date" value="${esc(x.d)}" aria-label="Fecha"><input id="tm" class="in" type="time" value="${esc(x.tm)}" aria-label="Hora"></div>
+<p class="lab">Prioridad</p><div class="seg four" role="group">${['Ninguna', 'Baja', 'Media', 'Alta'].map((n, i) => `<button type="button" class="sp${i}" data-a="pset" data-p="${i}" aria-pressed="${x.p === i}">${i ? '<i class="pdot"></i>' : ''}${n}</button>`).join('')}</div>
 <p class="lab">Aviso</p><select id="tr" class="in" aria-label="Aviso">${opts.map(k => `<option value="${k}"${k === x.rk ? ' selected' : ''}>${RK_LABEL[k]}</option>`).join('')}</select>
 ${x.rk === 'custom' ? `<input id="trc" class="in" type="datetime-local" value="${x.rc ? toLocalInput(x.rc) : ''}" aria-label="Fecha y hora del aviso">` : ''}
-<p class="lab">Prioridad</p><div class="seg four" role="group">${['Ninguna', 'Baja', 'Media', 'Alta'].map((n, i) => `<button type="button" data-a="pset" data-p="${i}" aria-pressed="${x.p === i}">${n}</button>`).join('')}</div>
-${P.length ? `<p class="lab">Proyecto</p><select id="tp" class="in" aria-label="Proyecto"><option value="">Sin proyecto</option>${P.map(p => `<option value="${esc(p.id)}"${p.id === x.pr ? ' selected' : ''}>${p.e ? esc(p.e) + ' ' : ''}${esc(p.n)}</option>`).join('')}</select>` : ''}
+<p class="lab">Notas</p><textarea id="tn" class="in ta" maxlength="2000" rows="2" placeholder="Notas o primer paso (opcional)" aria-label="Notas">${esc(x.n)}</textarea>
 <p class="lab">Subtareas</p>
 ${subs.map(s => `<div class="sub${s.s === 'done' ? ' done' : ''}">${isNew ? '<span class="dot" aria-hidden="true">•</span>' : `<button type="button" class="chk sm" data-a="subtg" data-id="${esc(s.id)}" aria-pressed="${s.s === 'done'}" aria-label="Marcar ${esc(s.t)}"><span class="box" aria-hidden="true"></span></button>`}<span class="nm">${esc(s.t)}</span><button type="button" class="more" data-a="subdel" data-id="${esc(s.id)}" aria-label="Quitar ${esc(s.t)}">✕</button></div>`).join('')}
 <div class="qr" style="margin-top:8px"><input id="ns" class="in" type="text" maxlength="200" placeholder="Agregar un paso…" autocomplete="off" enterkeyhint="done" aria-label="Nueva subtarea"><button type="button" class="btn" data-a="subadd" style="width:auto;min-width:56px" aria-label="Agregar subtarea">+</button></div>
@@ -553,7 +550,7 @@ function readDraft() {
   if (g('td')) x.d = g('td').value; if (g('tm')) x.tm = g('tm').value;
   if (g('tr')) x.rk = g('tr').value;
   if (g('trc')) x.rc = g('trc').value ? new Date(g('trc').value).getTime() || 0 : 0;
-  if (g('tp')) x.pr = g('tp').value; if (g('tdur')) x.dur = +g('tdur').value || 60;
+  if (g('tp')) x.pr = g('tp').value === '__new' ? '' : g('tp').value; if (g('tdur')) x.dur = +g('tdur').value || 60;
 }
 function openTask(id, o) {
   const t = id ? D().tasks[id] : null;
@@ -592,7 +589,7 @@ function sheetSubmit() {
   }
   if (s.t === 'newlist') { const id = newList(val, ($('#se') || {}).value, s.k || 'wish'); closeSheet(); cur = id; if (s.fromInbox && D().inbox[s.fromInbox]) { addItems(D().lists[id], D().inbox[s.fromInbox].t); D().inbox[s.fromInbox].del = true; D().inbox[s.fromInbox].u = now(); touch(); } go('list'); }
   else if (s.t === 'editlist') { const l = curList(); if (l) { if (val.trim()) l.n = val.trim().slice(0, 80); l.e = firstEmoji(($('#se') || {}).value); l.u = now(); touch(); } closeSheet(); paint(); }
-  else if (s.t === 'newproj') { const id = newProject(val, ($('#se') || {}).value); closeSheet(); tfilter = 'proj'; curP = id; go('project'); }
+  else if (s.t === 'newproj') { const id = newProject(val, ($('#se') || {}).value); if (s.back) { openSheet({ t: 'task', draft: { ...s.back, pr: id } }); return; } closeSheet(); tfilter = 'proj'; curP = id; go('project'); }
   else if (s.t === 'editproj') { const p = curProj(); if (p) { if (val.trim()) p.n = val.trim().slice(0, 80); p.e = firstEmoji(($('#se') || {}).value); p.u = now(); touch(); } closeSheet(); paint(); }
   else if (s.t === 'name') { D().name = val.trim().slice(0, 30); D().nameU = now(); touch(); closeSheet(); render(); }
   else if (s.t === 'item') { const i = curList()?.items[s.id]; const n = val.trim().slice(0, 200); if (i && n) { i.n = n; i.no = (($('#snote') || {}).value || '').slice(0, 1000); i.u = now(); touch(); } closeSheet(); paint(); }
@@ -733,7 +730,7 @@ const A = {
   inbox() { go('inbox'); },
   tf(b) { tfilter = b.dataset.f; histN = 40; render(); },
   histmore() { histN += 40; paint(); },
-  newtask(b) { openTask('', b.dataset.d === 'today' ? { d: today() } : {}); },
+  alltasks() { tfilter = 'open'; go('tasks'); },
   topen(b) { openTask(b.dataset.id); },
   tdone(b) {
     const id = b.dataset.id, t = D().tasks[id]; if (!t) return;
@@ -801,7 +798,7 @@ const A = {
   rsnz(b) { b.closest('.rmc').remove(); snooze(b.dataset.id, 'h1'); paint(); },
   rtom(b) { b.closest('.rmc').remove(); snooze(b.dataset.id, 'tom'); paint(); },
   ropen(b) { b.closest('.rmc').remove(); openTask(b.dataset.id); },
-  close() { closeSheet(); },
+  close() { if (sheet && sheet.back) { openSheet({ t: 'task', draft: sheet.back }); return; } closeSheet(); },
   yes() { const f = sheet && sheet.fn; closeSheet(); if (f) f(); },
   syncnow() { toast('Sincronizando…'); sync().then(ok => { if (ok) toast('Todo sincronizado'); else if (S.token) toast(st === 'off' ? 'Sin conexión' : 'No se pudo sincronizar'); }); },
   export() { exportData(); },
@@ -824,8 +821,9 @@ document.addEventListener('submit', e => {
   const v = qi.value; if (!v.trim()) return;
   if (id === 'cf') { const n = capture(v); qi.value = ''; if (n) { paint(); toast(n === 1 ? 'Anotado en tu bandeja ✓' : `${n} ideas anotadas ✓`, 'Ver bandeja', () => go('inbox')); } }
   else if (id === 'tf-form' || id === 'pf') {
-    const r = quickTask(v, id === 'pf' ? { pr: curP } : {}); qi.value = '';
-    if (r) { paint(); toast('Tarea creada' + (r.t.d ? ': ' + whenText(r.t) : ''), 'Editar', () => openTask(r.t.id)); }
+    const w = parseWhen(v); qi.value = '';
+    openTask('', { t: w.t[0].toUpperCase() + w.t.slice(1), d: w.d, tm: w.tm, rk: w.tm ? 'at' : '', pr: id === 'pf' ? curP : '' });
+    return;
   } else if (id === 'lf') { const l = curList(); if (l && addItems(l, v)) { qi.value = ''; paint(); } }
   qi.focus();
 });
@@ -837,6 +835,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const id = e.target.id;
+  if (sheet && sheet.t === 'task' && id === 'tp' && e.target.value === '__new') { readDraft(); openSheet({ t: 'newproj', back: sheet.draft }); return; }
   if (sheet && sheet.t === 'task' && ['td', 'tm', 'tr', 'trc', 'tp', 'tdur'].includes(id)) { readDraft(); if (id === 'td' && !sheet.draft.d) sheet.draft.tm = ''; renderSheet(); }
 });
 document.addEventListener('keydown', e => {

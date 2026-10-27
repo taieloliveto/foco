@@ -298,3 +298,21 @@ a.rowb{color:var(--acc);text-decoration:none;font-weight:600}
 .two .btn.ghost{margin:0}
 
 .two .btn{white-space:nowrap;padding:0 10px;font-size:.95rem}
+
+/* Semáforo de prioridad */
+:root{--p1:#2FA866;--p2:#E8A317;--p3:#E5484D}
+@media(prefers-color-scheme:dark){:root{--p1:#4CD39D;--p2:#F2B84B;--p3:#FF7388}}
+.it{border-left:4px solid transparent}
+.it.pr1{border-left-color:var(--p1)}.it.pr2{border-left-color:var(--p2)}.it.pr3{border-left-color:var(--p3)}
+.chk.p1 .box{border-color:var(--p1)}.chk.p2 .box{border-color:var(--p2)}.chk.p3 .box{border-color:var(--p3);border-width:3px}
+.mt.pp1{background:color-mix(in srgb,var(--p1) 22%,transparent);color:var(--p1)}
+.mt.pp2{background:color-mix(in srgb,var(--p2) 24%,transparent);color:var(--p2)}
+.mt.pp3{background:color-mix(in srgb,var(--p3) 22%,transparent);color:var(--p3)}
+.pdot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:baseline}
+.sp1 .pdot{background:var(--p1)}.sp2 .pdot{background:var(--p2)}.sp3 .pdot{background:var(--p3)}
+/* Cards del mismo tamaño */
+#cards .card{height:96px;display:flex;flex-direction:column;justify-content:center;margin:0}
+#cards .card b,#cards .card small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#cards .card .pbar{margin-top:10px;flex:none}
+.two .in{min-width:0;padding:0 12px;font-size:1rem}
+.two{grid-template-columns:1.3fr 1fr}

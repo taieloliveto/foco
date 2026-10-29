@@ -246,6 +246,36 @@ await step('Proyectos: crear, agregar tareas eligiendo proyecto y ver avance', a
   const hs = await p.locator('#cards .card').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().height)));
   assert.ok(hs.length >= 1 && hs.every(h => h === hs[0]), 'cards de distinto tamaño: ' + hs);
 });
+await step('destacar una tarea desde el cuadro: aparece en Hoy bajo "Destacadas", sin repetirse', async () => {
+  await nav(p, 'Proyectos'); await seg(p, 'Tareas');
+  await p.fill('#ti', 'Llamar a mamá'); await p.keyboard.press('Enter');
+  const sw = p.locator('.fvt');
+  assert.equal(await sw.getAttribute('aria-checked'), 'false');
+  await sw.click();
+  assert.equal(await sw.getAttribute('aria-checked'), 'true');
+  const pos = async s => (await p.locator(s).boundingBox()).y;
+  assert.ok(await pos('.seg.four') < await pos('.fvt') && await pos('.fvt') < await pos('#tr'), 'el check va entre Prioridad y Aviso');
+  await p.screenshot({ path: join(SHOTS, '06c-destacar.png') });
+  await p.locator('#sf button[type=submit]').click();
+  await p.locator('.it').filter({ hasText: 'Llamar a mamá' }).locator('.star').first().waitFor();
+  await nav(p, 'Hoy');
+  await p.getByText(/Destacadas · 1/).waitFor();
+  assert.equal(await p.locator('.favs .it').filter({ hasText: 'Llamar a mamá' }).count(), 1);
+  const y = async s => (await p.locator(s).first().boundingBox()).y;
+  assert.ok(await y('.favs') < await y('.pgs'), 'las destacadas van antes que los proyectos');
+  // una destacada con fecha de hoy aparece solo en "Para hoy"
+  await p.locator('.favs .it .main').click();
+  await p.locator('.chip[data-v=today]').click();
+  await p.locator('#sf button[type=submit]').click();
+  await p.getByText(/Destacadas/).waitFor({ state: 'detached' });
+  assert.equal(await p.locator('#body > .it').filter({ hasText: 'Llamar a mamá' }).count(), 1);
+  // se des-destaca desde el mismo check
+  await p.locator('#body > .it .main').filter({ hasText: 'Llamar a mamá' }).click();
+  assert.equal(await p.locator('.fvt').getAttribute('aria-checked'), 'true');
+  await p.locator('.fvt').click(); await p.locator('#sf button[type=submit]').click();
+  assert.equal(await p.locator('.star').count(), 0);
+  await nav(p, 'Proyectos');
+});
 await step('proyecto nuevo desde el cuadro de tarea y semáforo de prioridad', async () => {
   await seg(p, 'Tareas');
   await p.fill('#ti', 'Probar el semáforo');

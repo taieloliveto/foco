@@ -10,7 +10,7 @@
                   t título · n notas · s estado (todo|doing|done) · p prioridad 0-3
                   d fecha 'AAAA-MM-DD' · tm hora 'HH:MM' · r recordatorio (ms) · rk tipo de recordatorio
                   pr proyecto · par tarea madre (subtareas) · ev/evl bloque en Google Calendar · dn cuándo se completó
-                  o orden manual dentro de su proyecto (0 = sin ordenar: va al final, por fecha de creación)
+                  fv destacada en el inicio · o orden manual dentro de su proyecto (0 = sin ordenar: va al final, por fecha de creación)
      projects: { id: { id, n, e, ar, o, c, u, del } },   (o = orden manual)
      lists:    { id: { id, n, e, k, c, u, del, items: { id: { id, n, no, d, dn, c, u, del } } } },
      last, lastU                               última lista abierta
@@ -64,7 +64,7 @@ function fixTask(r, id) {
     r: rr, rk: rr && REMINDER_KINDS.includes(r.rk) ? r.rk : (rr ? 'custom' : ''),
     pr: idOk(r.pr) ? r.pr : '', par: idOk(r.par) ? r.par : '',
     ev: str(r.ev, 120), evl: typeof r.evl === 'string' && /^https:\/\/\S+$/.test(r.evl) ? r.evl.slice(0, 400) : '',
-    dn: s === 'done' ? (num(r.dn) || u) : 0, o: ordN(r.o), c: num(r.c), u, del
+    dn: s === 'done' ? (num(r.dn) || u) : 0, fv: !!r.fv && !del, o: ordN(r.o), c: num(r.c), u, del
   };
 }
 function fixProject(r, id) {

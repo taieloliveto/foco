@@ -259,6 +259,7 @@ function taskRow(t, o = {}) {
   if (t.ev) meta.push('<span class="mt" title="En Google Calendar">📅</span>');
   if (subs.length) meta.push(`<span class="mt">☑ ${sd}/${subs.length}</span>`);
   if (p && !o.noProject) meta.push(`<span class="mt">${p.e ? esc(p.e) + ' ' : ''}${esc(p.n)}</span>`);
+  if (t.fv && t.s !== 'done') meta.unshift('<span class="mt star" title="Destacada">⭐</span>');
   if (t.p && !(t.s === 'done')) meta.unshift(`<span class="mt pp${t.p}">${['', 'Baja', 'Media', 'Alta'][t.p]}</span>`);
   const done = t.s === 'done';
   return `<div class="it pr${done ? 0 : t.p}${done ? ' done' : ''}" data-id="${esc(t.id)}"><button class="chk p${t.p}" data-a="tdone" data-id="${esc(t.id)}" aria-pressed="${done}" aria-label="${done ? 'Reabrir' : 'Completar'} ${esc(t.t)}"><span class="box" aria-hidden="true"></span></button><button class="main" data-a="topen" data-id="${esc(t.id)}"><span class="nm">${esc(t.t)}</span>${meta.length ? `<span class="meta">${meta.join('')}</span>` : ''}</button>${o.snz ? `<button class="more" data-a="tsnz" data-id="${esc(t.id)}" aria-label="Posponer ${esc(t.t)}">⏰</button>` : ''}${o.grip ? gripBtn('Reordenar ' + t.t) : ''}</div>`;
@@ -291,6 +292,8 @@ function bodyToday() {
   if (ib) h += `<button class="card inb" data-a="inbox"><b>📥 Bandeja</b><small>${ib} ${ib === 1 ? 'idea' : 'ideas'} sin clasificar · tocá para convertirlas en acciones</small></button>`;
   h += secH(`Para hoy${tod.length ? ' · ' + tod.length : ''}`);
   h += tod.length ? tod.map(t => taskRow(t, { snz: 1 })).join('') : `<div class="empty small-e"><p class="mut">${doneToday ? '¡Terminaste lo de hoy! 🎉' : 'No tenés nada agendado para hoy.'}</p></div>`;
+  const fav = O.filter(t => t.fv && !(t.d && t.d <= td));     // las que ya están en "Para hoy" no se repiten
+  if (fav.length) h += secH(`⭐ Destacadas · ${fav.length}`) + `<div class="favs">${fav.map(t => taskRow(t, { snz: 1 })).join('')}</div>`;
   if (G.length) {
     h += secH(`Pendientes por proyecto · ${O.length}`);
     h += '<div class="pgs">' + G.map(g => groupHtml(g, L.open && g.key in L.open ? !!L.open[g.key] : (L.open && (g.key || '_none') in L.open ? !!L.open[g.key || '_none'] : G.length === 1))).join('') + '</div>';
@@ -486,6 +489,7 @@ function taskSheet() {
 <p class="lab">Cuándo</p><div class="chips wrapc" role="group">${chipsDate(x.d)}</div>
 <div class="two"><label class="dt"><span>Fecha</span><input id="td" class="in${x.d ? '' : ' empty'}" type="date" value="${esc(x.d)}" data-ph="Elegir fecha" aria-label="Fecha"></label><label class="dt"><span>Hora</span><input id="tm" class="in${x.tm ? '' : ' empty'}" type="time" value="${esc(x.tm)}" data-ph="Elegir hora" aria-label="Hora"></label></div>
 <p class="lab">Prioridad</p><div class="seg four" role="group">${['Ninguna', 'Baja', 'Media', 'Alta'].map((n, i) => `<button type="button" class="sp${i}" data-a="pset" data-p="${i}" aria-pressed="${x.p === i}">${i ? '<i class="pdot"></i>' : ''}${n}</button>`).join('')}</div>
+<button type="button" class="fvt" data-a="fvset" role="switch" aria-checked="${!!x.fv}"><span class="fvs" aria-hidden="true">⭐</span><span class="fvx"><b>Destacar en el inicio</b><small>Aparece en Hoy aunque no tenga fecha</small></span><span class="sw" aria-hidden="true"></span></button>
 <p class="lab">Aviso</p><select id="tr" class="in" aria-label="Aviso">${opts.map(k => `<option value="${k}"${k === x.rk ? ' selected' : ''}>${RK_LABEL[k]}</option>`).join('')}</select>
 ${x.rk === 'custom' ? `<input id="trc" class="in${x.rc ? '' : ' empty'}" data-ph="Elegir fecha y hora" type="datetime-local" value="${x.rc ? toLocalInput(x.rc) : ''}" aria-label="Fecha y hora del aviso">` : ''}
 <p class="lab">Notas</p><textarea id="tn" class="in ta" maxlength="2000" rows="2" placeholder="Notas o primer paso (opcional)" aria-label="Notas">${esc(x.n)}</textarea>
@@ -557,8 +561,8 @@ function ask(msg, sub, yes, fn) { sheet = { t: 'ask', msg, sub, yes, fn }; rende
 
 /* Borrador de la tarea: se lee del formulario antes de volver a dibujar la ventana */
 function taskDraft(t, o = {}) {
-  return t ? { id: t.id, t: t.t, n: t.n, d: t.d, tm: t.tm, rk: t.rk, rc: t.rk === 'custom' ? t.r : 0, p: t.p, pr: t.pr, ev: t.ev, evl: t.evl, subs: [], dur: 60, ...o }
-    : { id: '', t: '', n: '', d: '', tm: '', rk: '', rc: 0, p: 0, pr: '', ev: '', evl: '', subs: [], dur: 60, ...o };
+  return t ? { id: t.id, t: t.t, n: t.n, d: t.d, tm: t.tm, rk: t.rk, rc: t.rk === 'custom' ? t.r : 0, p: t.p, fv: !!t.fv, pr: t.pr, ev: t.ev, evl: t.evl, subs: [], dur: 60, ...o }
+    : { id: '', t: '', n: '', d: '', tm: '', rk: '', rc: 0, p: 0, fv: false, pr: '', ev: '', evl: '', subs: [], dur: 60, ...o };
 }
 function readDraft() {
   const x = sheet && sheet.draft; if (!x || sheet.t !== 'task') return;
@@ -581,7 +585,7 @@ function saveTask(x) {
   if (!t) t = newTask({ t: title });
   if (x.rk === 'custom' && !x.rc) x.rk = '';
   const r = calcR(x.d, x.tm, x.rk, x.rc);
-  Object.assign(t, { t: title, n: (x.n || '').slice(0, 2000), d: x.d || '', tm: x.d || x.rk === 'custom' ? (x.tm || '') : '', rk: r ? x.rk : '', r, p: x.p, pr: proj(x.pr) ? x.pr : '', u: now() });
+  Object.assign(t, { t: title, n: (x.n || '').slice(0, 2000), d: x.d || '', tm: x.d || x.rk === 'custom' ? (x.tm || '') : '', rk: r ? x.rk : '', r, p: x.p, fv: !!x.fv, pr: proj(x.pr) ? x.pr : '', u: now() });
   if (!x.id) { for (const s of x.subs) if (s.trim()) newTask({ t: s.trim().slice(0, 200), par: t.id }); }
   if (x.fromInbox && D().inbox[x.fromInbox]) { D().inbox[x.fromInbox].del = true; D().inbox[x.fromInbox].u = now(); }
   x.id = t.id; touch(); return t;
@@ -766,6 +770,7 @@ const A = {
   tsnz(b) { openSheet({ t: 'snooze', id: b.dataset.id }); },
   snz(b) { closeSheet(); snooze(b.dataset.id, b.dataset.k); paint(); },
   dset(b) { readDraft(); sheet.draft.d = ({ today: today(), tom: addD(today(), 1), we: weekend(), wk: nextWeek() })[b.dataset.v] || ''; if (!b.dataset.v) { sheet.draft.tm = ''; } renderSheet(); },
+  fvset() { readDraft(); sheet.draft.fv = !sheet.draft.fv; renderSheet(); },
   pset(b) { readDraft(); sheet.draft.p = +b.dataset.p; renderSheet(); },
   subadd() {
     readDraft(); const v = ($('#ns') || {}).value?.trim(); if (!v) return;

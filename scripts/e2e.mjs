@@ -568,6 +568,23 @@ await step('Agenda: calendario del mes arriba; elegir un día muestra sus evento
   await p.getByRole('button', { name: 'Hoy', exact: true }).first().click();
   await p.locator('.cd.td.sel').waitFor();
 });
+if (process.env.AUDIT) await step('auditoría visual', async () => {
+  for (const [w, h, tag] of [[390, 844, 'm'], [1280, 800, 'd']]) {
+    await p.setViewportSize({ width: w, height: h });
+    for (const [name, fn] of [
+      ['hoy', async () => nav(p, 'Hoy')],
+      ['proyectos', async () => { await nav(p, 'Proyectos'); await seg(p, 'Proyectos'); }],
+      ['tareas', async () => { await nav(p, 'Proyectos'); await seg(p, 'Tareas'); }],
+      ['hecho', async () => { await nav(p, 'Proyectos'); await seg(p, 'Hecho'); }],
+      ['resumen', async () => { await nav(p, 'Proyectos'); await seg(p, 'Resumen'); }],
+      ['listas', async () => nav(p, 'Listas')],
+      ['lista', async () => { await nav(p, 'Listas'); await p.locator('#cards .pc .pmain').first().click(); }],
+      ['agenda', async () => nav(p, 'Agenda')],
+      ['ajustes', async () => { await nav(p, 'Hoy'); await p.locator('[data-a=tab][data-t=set]').first().click(); }],
+    ]) { await fn(); await p.waitForTimeout(500); await p.evaluate(() => scrollTo(0, 0)); await p.screenshot({ path: join(SHOTS, `audit-${tag}-${name}.png`) }); }
+  }
+  await p.setViewportSize({ width: 390, height: 844 });
+});
 await step('crear un bloque de tiempo desde una tarea', async () => {
   await p.getByRole('button', { name: 'Agenda' }).click();
   await p.locator('.it').filter({ hasText: 'Llamar al dentista' }).locator('.main').click();

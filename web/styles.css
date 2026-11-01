@@ -167,7 +167,6 @@ body.nonav #t{bottom:calc(24px + env(safe-area-inset-bottom,0px))}
 
 @media(min-width:900px){
   #v{max-width:760px}
-  #cards{grid-template-columns:1fr 1fr}
 }
 @media(prefers-reduced-motion:reduce){*:not(.boot){animation:none!important;transition:none!important}}
 
@@ -421,7 +420,6 @@ body.inonb{overflow:hidden}
 @media(max-height:620px){.obm h2{margin-top:12px}.oa{padding:12px}}
 
 /* Resumen: gráficos */
-.dmch{margin:2px 0 6px}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:8px 0 12px}
 .kpis>div{padding:12px 14px;border-radius:18px;background:var(--acc-soft);display:flex;flex-direction:column}
 .kpis b{font-size:1.7rem;letter-spacing:-.03em;line-height:1.1}
@@ -470,3 +468,12 @@ body.inonb{overflow:hidden}
 .calf .mini{margin-left:auto}
 .dayp{scroll-margin-top:72px}
 .nxt{margin-top:28px;font-size:.85rem;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+
+/* Revisión de márgenes y anchos: todo alineado al mismo borde y en una sola columna */
+#cards{grid-template-columns:minmax(0,1fr)}
+.dmch{margin-top:10px;margin-bottom:8px}
+.cd{width:100%;max-width:56px;margin:1px auto}
+.sb{padding:0}
+.chk{width:38px}
+.sec{margin-top:24px}
+.kpis,.chart,.cal{width:100%}

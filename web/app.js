@@ -40,10 +40,11 @@ try {
 } catch (_) {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (_) {} };
 /* Preferencias de este dispositivo (no se sincronizan) */
-let L = { fired: {}, pushEp: '', pushErr: '', notif: false, events: null, open: {} };
+let L = { fired: {}, pushEp: '', pushErr: '', notif: false, events: null, open: {}, onb: 0 };
 try { const r = JSON.parse(localStorage.getItem(LKEY) || 'null'); if (r && typeof r === 'object') L = { ...L, ...r }; } catch (_) {}
 const saveL = () => { try { localStorage.setItem(LKEY, JSON.stringify(L)); } catch (_) {} };
 
+let onb = -1;                     // paso de la introducción que se está viendo (-1 = cerrada)
 let view = 'auth', sheet = null, busy = false, st = 'ok', rev = 0, cur = '', curP = '';
 let authMode = 'login', authErr = '', authEmail = S.email, authPass = '', authName = '';
 let dragging = false, installEvt = null, tfilter = 'proj', histN = 40, evErr = '', evBusy = false;
@@ -446,6 +447,8 @@ ${GCal.enabled() ? `<h3>Google Calendar</h3><p class="mut small">${GCal.linked()
 ${installEvt ? '<button class="sb" data-a="install">Instalar la app</button>' : '<p class="mut small">En Android: menú del navegador → <i>Instalar app</i>. En iPhone: Safari → Compartir → <i>Agregar a inicio</i> (necesario para recibir avisos).</p>'}
 <h3>Datos</h3>
 <button class="sb" data-a="export">Exportar todo (JSON)</button>
+<h3>Ayuda</h3>
+<button class="sb" data-a="onbshow">Ver la introducción de Foco</button>
 <h3>Sesión</h3>
 <button class="sb" data-a="logout">Cerrar sesión</button>
 <button class="sb dng" data-a="delacc">Eliminar mi cuenta y mis datos</button>
@@ -473,7 +476,39 @@ function render() {
   const nav = view !== 'auth';
   $('#nv').hidden = !nav; document.body.classList.toggle('nonav', !nav);
   paint(); renderSheet(); paintSync(); paintNav();
+  if (nav && !L.onb && onb < 0) onb = 0;
+  paintOnb();
 }
+/* ---------- Pantalla de carga e introducción de 3 pasos ---------- */
+const splashT0 = performance.now();
+function hideSplash() {
+  const sp = $('#sp'); if (!sp) return;
+  const go = () => { sp.classList.add('out'); setTimeout(() => sp.remove(), 450); };
+  const wait = Math.max(0, 900 - (performance.now() - splashT0));      // se ve al menos un instante, sin parpadeos
+  setTimeout(go, wait);
+}
+const ONB = [
+  { t: 'Capturá sin pensar', d: 'Si se te ocurre algo, tocá + y escribilo. No hace falta ordenarlo: queda en tu Bandeja para después.',
+    art: '<div class="oa"><div class="om cap"><span>Llamar al dentista…</span><i>+</i></div><div class="om"><span class="oi">📥</span><b>Bandeja</b><small>3 ideas sin clasificar</small></div></div>' },
+  { t: 'Convertí ideas en acciones', d: 'Pasá cada idea a una tarea con proyecto, fecha, prioridad y aviso. Marcá con ⭐ lo que no podés olvidar.',
+    art: '<div class="oa"><div class="om tk p3"><span class="ob"></span><div><b>Renovar el pasaporte</b><small>Mañana 10:30 · 🔔 · ⭐</small></div></div><div class="om tk p2"><span class="ob"></span><div><b>Armar el viaje</b><small>✈️ Viaje a Mendoza</small></div></div></div>' },
+  { t: 'Tu día, claro', d: 'Hoy te muestra lo de hoy, lo destacado y tus proyectos. Activá los avisos y conectá Google Calendar para no depender de la memoria.',
+    art: '<div class="oa"><div class="om"><b>Para hoy · 2</b><small>Lo que toca ahora</small></div><div class="om"><b>⭐ Destacadas</b><small>Lo importante, siempre arriba</small></div><div class="om"><b>▸ Proyectos</b><small>Desplegables, con números por prioridad</small></div></div>' }
+];
+let obKey = '';
+function paintOnb() {
+  const root = $('#ob-root'); if (!root) return;
+  if (onb < 0 || view === 'auth') { if (obKey) { root.innerHTML = ''; obKey = ''; document.body.classList.remove('inonb'); } return; }
+  const k = String(onb); if (k === obKey) return;
+  obKey = k; document.body.classList.add('inonb');
+  const s = ONB[onb], last = onb === ONB.length - 1;
+  root.innerHTML = `<div class="onb" role="dialog" aria-modal="true" aria-label="Cómo funciona Foco · paso ${onb + 1} de ${ONB.length}">
+<div class="obt">${onb ? '<button class="icon" data-a="oback" aria-label="Paso anterior">‹</button>' : '<span></span>'}${last ? '<span></span>' : '<button class="mini" data-a="oskip">Saltar</button>'}</div>
+<div class="obm"><div class="obart" key="${onb}">${s.art}</div><h2 id="obh">${s.t}</h2><p>${s.d}</p></div>
+<div class="obb"><div class="dots" aria-hidden="true">${ONB.map((_, i) => `<i${i === onb ? ' class="on"' : ''}></i>`).join('')}</div><button class="btn" data-a="onext">${last ? 'Empezar' : 'Siguiente'}</button></div></div>`;
+  const b = root.querySelector('.btn'); if (b) b.focus({ preventScroll: true });
+}
+function closeOnb() { onb = -1; L.onb = 1; saveL(); paintOnb(); window.scrollTo(0, 0); }
 
 /* ---------- Ventanas flotantes ---------- */
 const chipsDate = d => [['Hoy', 'today', today()], ['Mañana', 'tom', addD(today(), 1)], ['Fin de semana', 'we', weekend()], ['Próx. semana', 'wk', nextWeek()], ['Sin fecha', '', '']].map(([n, v, dt]) => `<button type="button" class="chip" data-a="dset" data-v="${v}" aria-pressed="${d === dt}">${n}</button>`).join('');
@@ -771,6 +806,10 @@ const A = {
   snz(b) { closeSheet(); snooze(b.dataset.id, b.dataset.k); paint(); },
   dset(b) { readDraft(); sheet.draft.d = ({ today: today(), tom: addD(today(), 1), we: weekend(), wk: nextWeek() })[b.dataset.v] || ''; if (!b.dataset.v) { sheet.draft.tm = ''; } renderSheet(); },
   fvset() { readDraft(); sheet.draft.fv = !sheet.draft.fv; renderSheet(); },
+  onext() { if (onb >= ONB.length - 1) closeOnb(); else { onb++; paintOnb(); } },
+  oback() { if (onb > 0) { onb--; paintOnb(); } },
+  oskip() { closeOnb(); },
+  onbshow() { onb = 0; obKey = ''; paintOnb(); },
   pset(b) { readDraft(); sheet.draft.p = +b.dataset.p; renderSheet(); },
   subadd() {
     readDraft(); const v = ($('#ns') || {}).value?.trim(); if (!v) return;
@@ -876,6 +915,7 @@ document.addEventListener('change', e => {
   if (sheet && sheet.t === 'task' && ['td', 'tm', 'tr', 'trc', 'tp', 'tdur'].includes(id)) { readDraft(); if (id === 'td' && !sheet.draft.d) sheet.draft.tm = ''; renderSheet(); }
 });
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && onb >= 0 && view !== 'auth') { closeOnb(); return; }
   if (e.key === 'Escape' && sheet) closeSheet();
   if (e.key === 'Enter' && e.target.id === 'ns') { e.preventDefault(); A.subadd(); }
 });
@@ -961,4 +1001,5 @@ if (S.token) {
   render(); handleUrl(); startup2();
   sync().then(handleUrl);
 } else render();
+hideSplash();
 })();

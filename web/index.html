@@ -18,8 +18,14 @@
 </head>
 <body>
 <main id="v" aria-live="polite">
-  <p class="boot">Cargando…<br><small>Si esta pantalla no cambia, falta algún archivo de la app (<b>app.js</b>, <b>merge.js</b> o <b>gcal.js</b>). Revisá que se hayan subido todos los archivos de la carpeta <b>web</b>.</small></p>
 </main>
+
+<div id="sp" class="sp" role="status" aria-label="Cargando Foco">
+  <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="#fff"/></svg></div>
+  <b>Foco</b>
+  <span class="spl" aria-hidden="true"></span>
+  <p class="boot">Si esta pantalla no cambia, falta algún archivo de la app (<b>app.js</b>, <b>merge.js</b> o <b>gcal.js</b>). Revisá que se hayan subido todos los archivos de la carpeta <b>web</b>.</p>
+</div>
 
 <div id="nv" hidden>
   <nav class="pill" aria-label="Principal">
@@ -45,6 +51,7 @@
   </button>
 </div>
 
+<div id="ob-root"></div>
 <div id="rm-root"></div>
 <div id="ov-root"></div>
 <div id="t-root"></div>

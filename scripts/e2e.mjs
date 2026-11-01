@@ -69,9 +69,10 @@ const FAKE_PUSH = `(()=>{const sub={endpoint:'https://push.example.com/send/e2e'
 const pm={getSubscription:async()=>window.__subbed?sub:null,subscribe:async()=>{window.__subbed=true;return sub}};
 Object.defineProperty(ServiceWorkerRegistration.prototype,'pushManager',{get(){return pm}});
 let perm='default';Object.defineProperty(Notification,'permission',{get:()=>perm});Notification.requestPermission=async()=>{perm='granted';return perm};})();`;
-const newDevice = async (opts = {}) => {
+const newDevice = async ({ onboarding, ...opts } = {}) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, timezoneId: 'America/Buenos_Aires', locale: 'es-AR', permissions: ['notifications'], ...opts });
   await ctx.addInitScript(FAKE_PUSH);
+  if (!onboarding) await ctx.addInitScript(() => { try { if (!localStorage.getItem('foco.local')) localStorage.setItem('foco.local', JSON.stringify({ onb: 1 })); } catch (_) {} });
   await ctx.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: FAKE_GSI }));
   await ctx.route('https://www.googleapis.com/calendar/v3/**', async r => {
     if (r.request().method() === 'POST') { gcalPosts.push(JSON.parse(r.request().postData())); return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ id: 'new1', htmlLink: 'https://calendar.google.com/e/new1' }) }); }
@@ -91,7 +92,7 @@ const nav = (page, n) => page.locator('#nv').getByRole('button', { name: n, exac
 const seg = (page, n) => page.locator('#v .seg').getByRole('button', { name: n, exact: true }).click();
 
 console.log('Teléfono A');
-const A = await newDevice();
+const A = await newDevice({ onboarding: true });
 const p = A.page;
 await p.goto(APP);
 
@@ -101,9 +102,47 @@ await step('registro con nombre y entra a Hoy', async () => {
   await p.fill('[data-au=email]', 'ana@mail.com');
   await p.fill('[data-au=pass]', pw);
   await p.locator('form#af button[type=submit]').click();
-  await p.locator('#hi').filter({ hasText: 'Hola Ana' }).waitFor();
+  await p.locator('.onb').waitFor();                       // la introducción aparece al entrar por primera vez
+  await p.locator('#hi').filter({ hasText: 'Hola Ana' }).waitFor({ state: 'attached' });
   assert.equal(await p.locator('[data-au=server]').count(), 0);
+});
+await step('pantalla de carga al abrir y desaparece sola', async () => {
+  const C = await newDevice();
+  await C.page.goto(APP, { waitUntil: 'commit' });
+  await C.page.locator('#sp').waitFor({ state: 'attached' });
+  assert.match(await C.page.locator('#sp').textContent(), /Foco/);
+  await shot(C.page, '00-carga');
+  await C.page.locator('#sp').waitFor({ state: 'detached', timeout: 6000 });
+  await C.page.getByRole('button', { name: 'Crear cuenta' }).first().waitFor();
+  await C.ctx.close();
+});
+await step('introducción de 3 pasos: avanzar, volver, empezar; no vuelve a salir', async () => {
+  const o = p.locator('.onb');
+  assert.match(await o.locator('h2').textContent(), /Capturá sin pensar/);
+  assert.equal(await o.locator('.dots i.on').count(), 1);
+  await shot(p, '00b-intro-1');
+  await o.getByRole('button', { name: 'Siguiente' }).click();
+  assert.match(await o.locator('h2').textContent(), /Convertí ideas en acciones/);
+  await shot(p, '00c-intro-2');
+  await o.getByRole('button', { name: 'Paso anterior' }).click();
+  assert.match(await o.locator('h2').textContent(), /Capturá/);
+  await o.getByRole('button', { name: 'Siguiente' }).click(); await o.getByRole('button', { name: 'Siguiente' }).click();
+  assert.match(await o.locator('h2').textContent(), /Tu día, claro/);
+  assert.equal(await o.getByRole('button', { name: 'Saltar' }).count(), 0, 'en el último paso solo queda Empezar');
+  await shot(p, '00d-intro-3');
+  await o.getByRole('button', { name: 'Empezar' }).click();
+  await p.locator('.onb').waitFor({ state: 'detached' });
+  await p.locator('#hi').filter({ hasText: 'Hola Ana' }).waitFor();
   await shot(p, '01-hoy-vacio');
+  await p.reload();
+  await p.locator('#hi').filter({ hasText: 'Hola Ana' }).waitFor();
+  assert.equal(await p.locator('.onb').count(), 0, 'no vuelve a aparecer');
+  // se puede saltar y volver a verla desde Ajustes
+  await p.locator('[data-a=tab][data-t=set]').first().click();
+  await p.getByRole('button', { name: 'Ver la introducción de Foco' }).click();
+  await p.locator('.onb').getByRole('button', { name: 'Saltar' }).click();
+  await p.locator('.onb').waitFor({ state: 'detached' });
+  await nav(p, 'Hoy');
 });
 await step('captura de ideas con el botón +: dos ideas sin clasificar', async () => {
   await p.locator('.fab').click();

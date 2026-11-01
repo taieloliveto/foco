@@ -1,5 +1,5 @@
 /* Service worker de Foco: la app abre sin conexión y recibe avisos de recordatorios (Web Push). */
-const V = 'foco-v3';
+const V = 'foco-v4';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'merge.js', 'gcal.js', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

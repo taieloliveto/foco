@@ -293,7 +293,7 @@ await step('destacar una tarea desde el cuadro: aparece en Hoy bajo "Destacadas"
   await sw.click();
   assert.equal(await sw.getAttribute('aria-checked'), 'true');
   const pos = async s => (await p.locator(s).boundingBox()).y;
-  assert.ok(await pos('.seg.four') < await pos('.fvt') && await pos('.fvt') < await pos('#tr'), 'el check va entre Prioridad y Aviso');
+  assert.ok(await pos('.sh .seg.four') < await pos('.fvt') && await pos('.fvt') < await pos('#tr'), 'el check va entre Prioridad y Aviso');
   await p.screenshot({ path: join(SHOTS, '06c-destacar.png') });
   await p.locator('#sf button[type=submit]').click();
   await p.locator('.it').filter({ hasText: 'Llamar a mamá' }).locator('.star').first().waitFor();
@@ -463,15 +463,110 @@ await step('Agenda: conectar Google Calendar, ver eventos y tareas con fecha', a
   await p.getByRole('button', { name: 'Agenda' }).click();
   await shot(p, '11-agenda-sin-conectar');
   await p.getByRole('button', { name: 'Conectar con Google' }).click();
-  await p.locator('.ev').filter({ hasText: 'Reunión con Pedro' }).waitFor();
+  await p.locator('.ev').filter({ hasText: 'Reunión con Pedro' }).first().waitFor();
   await p.locator('.dayh').filter({ hasText: 'Mañana' }).waitFor();
   await p.locator('.it').filter({ hasText: 'Llamar al dentista' }).waitFor();
   await shot(p, '12-agenda');
 });
 await step('Hoy muestra los próximos eventos de Google', async () => {
-  await p.getByRole('button', { name: 'Hoy', exact: true }).first().click();
+  await nav(p, 'Hoy');
   await p.locator('.sec h3').filter({ hasText: 'Próximos eventos' }).waitFor();
   await p.locator('.ev').filter({ hasText: 'Reunión con Pedro' }).waitFor();
+});
+console.log('orden de listas, resumen y calendario');
+await step('las listas se reordenan arrastrando y los ítems dentro de una lista también', async () => {
+  await nav(p, 'Listas');
+  await p.getByRole('button', { name: '+ Nueva lista' }).click();
+  await p.fill('#sn', 'Lista de prueba'); await p.getByRole('button', { name: 'Crear lista' }).click();
+  await p.locator('#lt').filter({ hasText: 'Lista de prueba' }).waitFor();
+  await nav(p, 'Listas');
+  await p.locator('#cards .pc').nth(1).waitFor();
+  const names = async () => (await p.locator('#cards .pc b').allTextContents()).map(t => t.trim());
+  const before = await names();
+  const a = await p.locator('#cards .pc').nth(before.length - 1).locator('.grip').boundingBox(), b = await p.locator('#cards .pc').first().boundingBox();
+  await p.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await p.mouse.down();
+  await p.mouse.move(a.x + a.width / 2, b.y + 6, { steps: 14 }); await p.mouse.up();
+  await p.waitForFunction(([n]) => document.querySelector('#cards .pc b')?.textContent.trim() === n, [before[before.length - 1]]);
+  const after = await names(); assert.equal(after[0], before[before.length - 1]);
+  await p.waitForTimeout(1200); await p.reload(); await nav(p, 'Listas');
+  assert.deepEqual(await names(), after, 'el orden se recuerda');
+  await p.locator('#cards .pc').first().locator('.grip').focus(); await p.keyboard.press('ArrowDown');
+  assert.equal((await names())[1], after[0]);
+  await shot(p, '15-listas-orden');
+  // ítems: abrir una lista con varios pendientes y subir el último
+  await p.locator('#cards .pc .pmain').first().click();
+  await p.fill('#li', 'Uno; Dos; Tres'); await p.keyboard.press('Enter');
+  await p.locator('[data-sort=items] .it').nth(2).waitFor();
+  const inames = async () => (await p.locator('[data-sort=items] .it .nm').allTextContents()).map(t => t.trim());
+  const ib = await inames();
+  const last = await p.locator('[data-sort=items] .it').nth(ib.length - 1).locator('.grip').focus();
+  await p.keyboard.press('ArrowUp');
+  const ia = await inames(); assert.equal(ia[ib.length - 2], ib[ib.length - 1]);
+  await p.reload(); await nav(p, 'Listas'); await p.locator('#cards .pc .pmain').first().click(); await p.locator('[data-sort=items] .it').nth(2).waitFor();
+  assert.deepEqual(await inames(), ia, 'el orden de los ítems se recuerda');
+});
+await step('Proyectos › Resumen: gráficos de hechas vs. por hacer, por mes y por prioridad', async () => {
+  await nav(p, 'Proyectos'); await seg(p, 'Resumen');
+  await p.locator('.kpis').waitFor();
+  const k = (await p.locator('.kpis b').allTextContents()).map(Number);
+  assert.equal(k.length, 3);
+  const done = k[0], open = k[1];
+  assert.ok(open > 0, 'hay pendientes');
+  assert.match(await p.locator('.donut').getAttribute('aria-label'), new RegExp(`${done} hechas y ${open} pendientes`));
+  assert.equal(await p.locator('.mc').count(), 6, 'seis meses');
+  const prio = (await p.locator('.hb b').allTextContents()).map(Number);
+  assert.equal(prio.length, 4); assert.equal(prio.reduce((x, y) => x + y, 0), open, 'las barras de prioridad suman las abiertas');
+  assert.equal(await p.locator('.hb .hbt i').first().evaluate(e => getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)'), true);
+  await shot(p, '16-resumen');
+  // filtrar por mes: el mes actual
+  await p.locator('.mc[aria-pressed=false]').nth(4).click();
+  const cur = await p.locator('.mc[aria-pressed=true]').getAttribute('aria-label');
+  assert.match(cur, /hechas, \d+ pendientes/);
+  const k2 = (await p.locator('.kpis b').allTextContents()).map(Number);
+  assert.ok(k2[0] <= done && k2[1] <= open);
+  await shot(p, '16b-resumen-mes');
+  await p.locator('.dmch [data-m=""]').click();
+  assert.deepEqual((await p.locator('.kpis b').allTextContents()).map(Number), k);
+  await nav(p, 'Proyectos'); await seg(p, 'Proyectos');
+});
+await step('Agenda: calendario del mes arriba; elegir un día muestra sus eventos y tareas', async () => {
+  await nav(p, 'Agenda');
+  await p.locator('.cal').waitFor();
+  const top = s2 => p.evaluate(q => document.querySelector(q).getBoundingClientRect().top + scrollY, s2);
+  assert.ok(await top('.cal') < await top('.dayp') && await top('.dayp') < await top('.nxt'), 'calendario primero, luego el día, luego los próximos días');
+  const mes = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][new Date().getMonth()];
+  assert.match(await p.locator('.calh b').textContent(), new RegExp(mes));
+  assert.equal(await p.locator('.cd.sel').count(), 1, 'hoy viene seleccionado');
+  assert.equal(await p.locator('.cd.td.sel').count(), 1);
+  assert.ok((await p.locator('.cd').count()) % 7 === 0);
+  await shot(p, '17-calendario');
+  // un día con tareas: el de "Llamar al dentista" (mañana, o el mes siguiente si hoy es fin de mes)
+  const tomorrow = addDays(1);
+  if (tomorrow.slice(0, 7) !== addDays(0).slice(0, 7)) await p.getByRole('button', { name: 'Mes siguiente' }).click();
+  const cell = p.locator(`.cd[data-d="${tomorrow}"]`);
+  assert.match(await cell.getAttribute('aria-label'), /tarea/);
+  assert.equal(await cell.locator('.t').count(), 1, 'punto de tarea');
+  await cell.click();
+  await p.locator('.dayp .dayh b', { hasText: 'Mañana' }).waitFor();
+  await p.locator('.dayp .it').filter({ hasText: 'Llamar al dentista' }).waitFor();
+  await shot(p, '17b-dia');
+  // hoy: evento de Google
+  await p.getByRole('button', { name: 'Hoy', exact: true }).first().click();
+  await p.locator('.dayp .ev').filter({ hasText: 'Reunión con Pedro' }).waitFor();
+  assert.equal(await p.locator('.cd.td .e').count(), 1, 'punto de evento en hoy');
+  // crear una tarea desde el día elegido
+  await cell.click();
+  await p.getByRole('button', { name: '+ Tarea para este día' }).click();
+  assert.equal(await p.inputValue('#td'), tomorrow);
+  await p.fill('#tt', 'Tarea del calendario'); await p.locator('#sf button[type=submit]').click();
+  await p.locator('.dayp .it').filter({ hasText: 'Tarea del calendario' }).waitFor();
+  // navegar de mes
+  await p.getByRole('button', { name: 'Mes anterior' }).click();
+  assert.match(await p.locator('.cd.sel').getAttribute('data-d'), /-01$/, 'al cambiar de mes se elige el día 1');
+  await p.locator('.cd:not(.o)').nth(4).click();
+  await p.locator('.dayp .hint').waitFor();
+  await p.getByRole('button', { name: 'Hoy', exact: true }).first().click();
+  await p.locator('.cd.td.sel').waitFor();
 });
 await step('crear un bloque de tiempo desde una tarea', async () => {
   await p.getByRole('button', { name: 'Agenda' }).click();
@@ -497,7 +592,7 @@ await step('crear un evento suelto desde la Agenda', async () => {
   assert.equal(gcalPosts[1].summary, 'Estudiar inglés');
 });
 await step('sincronización: otro dispositivo ve todo', async () => {
-  await p.getByRole('button', { name: 'Hoy', exact: true }).first().click();
+  await nav(p, 'Hoy');
   await p.getByRole('button', { name: 'Ajustes' }).click();
   await p.getByRole('button', { name: 'Sincronizar ahora' }).click();
   await toast(p, /sincronizado/i);

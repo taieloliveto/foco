@@ -47,6 +47,7 @@ const saveL = () => { try { localStorage.setItem(LKEY, JSON.stringify(L)); } cat
 let onb = -1;                     // paso de la introducción que se está viendo (-1 = cerrada)
 let view = 'auth', sheet = null, busy = false, st = 'ok', rev = 0, cur = '', curP = '';
 let authMode = 'login', authErr = '', authEmail = S.email, authPass = '', authName = '';
+let calM = '', calSel = '', mEv = null, dashM = '';
 let dragging = false, installEvt = null, tfilter = 'proj', histN = 40, evErr = '', evBusy = false;
 const D = () => S.data;
 
@@ -59,7 +60,7 @@ const ordK = e => e.o || e.c;
 const byOrd = (a, b) => ordK(a) - ordK(b);
 const projects = () => Object.values(D().projects).filter(p => !p.del && !p.ar).sort(byOrd);
 const proj = id => { const p = D().projects[id]; return p && !p.del ? p : null; };
-const lists = () => Object.values(D().lists).filter(l => !l.del).sort((a, b) => a.c - b.c);
+const lists = () => Object.values(D().lists).filter(l => !l.del).sort(byOrd);
 const itemsOf = l => Object.values(l.items).filter(i => !i.del);
 const inbox = () => Object.values(D().inbox).filter(i => !i.del).sort((a, b) => b.c - a.c);
 const curList = () => { const l = D().lists[cur]; return l && !l.del ? l : null; };
@@ -313,9 +314,88 @@ function todayEvents() {
   return L.events.items.filter(e => e.e > t0 && e.s < e1).slice(0, 5);
 }
 
+/* ---------- Resumen (gráficos) ---------- */
+const MES3 = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const mkey = s => String(s).slice(0, 7);
+const mlabel = k => { const [y, m] = k.split('-').map(Number); return `${MES3[m - 1]} ${y}`; };
+const bucketM = t => t.d ? mkey(t.d) : mkey(ymd(new Date(t.c)));        // una tarea abierta cuenta en el mes de su fecha (o en el que se creó)
+const doneM = t => mkey(ymd(new Date(t.dn)));
+function dashMonths() { const [y, m] = mkey(today()).split('-').map(Number); return Array.from({ length: 6 }, (_, i) => { const d = new Date(y, m - 5 + i, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; }); }
+function bodyDash() {
+  const T = top(), done = T.filter(t => t.s === 'done'), open = T.filter(t => t.s !== 'done');
+  if (!T.length) return '<div class="empty"><div class="big" aria-hidden="true">📊</div><h2>Todavía no hay datos</h2><p class="mut">Cuando cargues y completes tareas, acá ves cómo vas mes a mes.</p></div>';
+  const ms = dashMonths(), td = today();
+  const D1 = done.filter(t => !dashM || doneM(t) === dashM), O1 = open.filter(t => !dashM || bucketM(t) === dashM);
+  const tot = D1.length + O1.length, pct = tot ? Math.round(D1.length / tot * 100) : 0, late = O1.filter(t => t.d && t.d < td).length;
+  const scope = dashM ? mlabel(dashM) : 'Todo el tiempo';
+  const R = 48, C = 2 * Math.PI * R, arc = tot ? C * D1.length / tot : 0;
+  const donut = `<svg class="donut" viewBox="0 0 120 120" role="img" aria-label="${D1.length} hechas y ${O1.length} pendientes: ${pct}% completado"><circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--line)" stroke-width="14"/>${tot ? `<circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--ok)" stroke-width="14" stroke-linecap="${D1.length && O1.length ? 'round' : 'butt'}" stroke-dasharray="${arc} ${C}" transform="rotate(-90 60 60)"/>` : ''}<text x="60" y="58" text-anchor="middle" class="dpc">${pct}%</text><text x="60" y="76" text-anchor="middle" class="dsub">hecho</text></svg>`;
+  const cols = ms.map(k => ({ k, d: done.filter(t => doneM(t) === k).length, o: open.filter(t => bucketM(t) === k).length }));
+  const mx = Math.max(1, ...cols.map(c => Math.max(c.d, c.o)));
+  const bars = cols.map(c => `<button type="button" class="mc" data-a="dmon" data-m="${c.k}" aria-pressed="${dashM === c.k}" aria-label="${mlabel(c.k)}: ${c.d} hechas, ${c.o} pendientes"><span class="mbars"><i class="bd" style="height:${c.d ? Math.max(4, Math.round(c.d / mx * 100)) : 0}%"><em>${c.d || ''}</em></i><i class="bo" style="height:${c.o ? Math.max(4, Math.round(c.o / mx * 100)) : 0}%"><em>${c.o || ''}</em></i></span><b>${MES3[+c.k.slice(5) - 1]}</b></button>`).join('');
+  const pr = [[3, 'Alta', 'var(--p3)'], [2, 'Media', 'var(--p2)'], [1, 'Baja', 'var(--p1)'], [0, 'Sin prioridad', 'var(--mut)']].map(([p, n, c]) => ({ n, c, v: O1.filter(t => t.p === p).length }));
+  const pm = Math.max(1, ...pr.map(x => x.v));
+  const pbars = pr.map(x => `<div class="hb"><span>${x.n}</span><div class="hbt"><i style="width:${x.v ? Math.max(3, Math.round(x.v / pm * 100)) : 0}%;background:${x.c}"></i></div><b>${x.v}</b></div>`).join('');
+  return `<div class="chips wrapc dmch" role="group" aria-label="Período"><button type="button" class="chip" data-a="dmon" data-m="" aria-pressed="${!dashM}">Todo</button>${ms.slice().reverse().map(k => `<button type="button" class="chip" data-a="dmon" data-m="${k}" aria-pressed="${dashM === k}">${mlabel(k)}</button>`).join('')}</div>
+<div class="kpis"><div><b>${D1.length}</b><small>Hechas</small></div><div><b>${O1.length}</b><small>Pendientes</small></div><div class="${late ? 'bad' : ''}"><b>${late}</b><small>Atrasadas</small></div></div>
+<section class="chart" aria-label="Hechas contra pendientes"><h3>Hechas vs. por hacer · ${esc(scope)}</h3><div class="dn">${donut}<ul class="lg"><li><i style="background:var(--ok)"></i>Hechas <b>${D1.length}</b></li><li><i style="background:var(--line)"></i>Por hacer <b>${O1.length}</b></li></ul></div></section>
+<section class="chart" aria-label="Tareas por mes"><h3>Por mes</h3><div class="mbs">${bars}</div><ul class="lg row"><li><i style="background:var(--ok)"></i>Hechas</li><li><i style="background:var(--acc)"></i>Pendientes</li></ul><p class="mut small">Hechas: las que completaste ese mes. Pendientes: las abiertas con fecha en ese mes. Tocá un mes para filtrar.</p></section>
+<section class="chart" aria-label="Pendientes por prioridad"><h3>Abiertas por prioridad · ${esc(scope)}</h3>${pbars}</section>`;
+}
+
+/* ---------- Calendario del mes (Agenda) ---------- */
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const calMonth = () => calM || (calM = mkey(today()));
+const calDay = () => calSel || (calSel = today());
+function calGrid(m) {
+  const [y, mo] = m.split('-').map(Number), first = new Date(y, mo - 1, 1), lead = (first.getDay() + 6) % 7, dim = new Date(y, mo, 0).getDate(), rows = Math.ceil((lead + dim) / 7);
+  const start = addD(ymd(first), -lead);
+  return Array.from({ length: rows * 7 }, (_, i) => addD(start, i));
+}
+function allEvents() {
+  if (!GCal.enabled() || !GCal.valid()) return [];
+  const a = mEv ? mEv.items : [], seen = new Set(a.map(e => e.id));
+  return a.concat((L.events ? L.events.items : []).filter(e => !seen.has(e.id)));
+}
+const eventsOn = (evs, day) => { const a = pYmd(day).getTime(), b = pYmd(addD(day, 1)).getTime(); return evs.filter(e => e.s < b && e.e > a).sort((x, y) => x.s - y.s); };
+function calHtml() {
+  const m = calMonth(), sel = calDay(), td = today(), g = calGrid(m), evs = allEvents();
+  const [y, mo] = m.split('-').map(Number);
+  const cnt = new Map(); for (const t of openT()) if (t.d) cnt.set(t.d, (cnt.get(t.d) || 0) + 1);
+  const cells = g.map(d => {
+    const nt = cnt.get(d) || 0, ne = eventsOn(evs, d).length, out = mkey(d) !== m, n = +d.slice(8);
+    const lab = `${n} de ${MESES[+d.slice(5, 7) - 1].toLowerCase()}${nt ? `, ${nt} ${nt === 1 ? 'tarea' : 'tareas'}` : ''}${ne ? `, ${ne} ${ne === 1 ? 'evento' : 'eventos'}` : ''}`;
+    return `<button type="button" class="cd${out ? ' o' : ''}${d === sel ? ' sel' : ''}${d === td ? ' td' : ''}" data-a="cday" data-d="${d}" aria-pressed="${d === sel}" aria-label="${lab}"><span>${n}</span><i class="dts" aria-hidden="true">${nt ? '<u class="t"></u>' : ''}${ne ? '<u class="e"></u>' : ''}</i></button>`;
+  }).join('');
+  return `<section class="cal" aria-label="Calendario de ${MESES[mo - 1]} ${y}"><div class="calh"><button class="icon" data-a="cprev" aria-label="Mes anterior">‹</button><b>${MESES[mo - 1]} ${y}</b><button class="icon" data-a="cnext" aria-label="Mes siguiente">›</button></div>
+<div class="calw" aria-hidden="true">${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div><div class="calg">${cells}</div>
+<div class="calf"><span class="lgd"><u class="t"></u>Tareas</span>${GCal.enabled() && GCal.valid() ? '<span class="lgd"><u class="e"></u>Eventos</span>' : ''}<button type="button" class="mini" data-a="ctoday">Hoy</button></div></section>${dayPanel(sel, evs)}`;
+}
+function dayPanel(day, evs) {
+  const td = today(), d = pYmd(day);
+  const E = eventsOn(evs, day), T = openT().filter(t => t.d === day).sort(cmp), Dn = top().filter(t => t.s === 'done' && ymd(new Date(t.dn)) === day);
+  const title = day === td ? 'Hoy' : day === addD(td, 1) ? 'Mañana' : day === addD(td, -1) ? 'Ayer' : DOW[d.getDay()][0].toUpperCase() + DOW[d.getDay()].slice(1);
+  let h = `<section class="dayp" id="dayp" aria-label="Actividad del día"><div class="dayh"><b>${title}</b><small>${d.getDate()} de ${MON[d.getMonth()]} de ${d.getFullYear()}</small></div>`;
+  h += `<div class="actrow"><button class="btn" data-a="dnew">+ Tarea para este día</button>${GCal.enabled() && GCal.valid() ? '<button class="btn ghost" data-a="newev" style="width:auto;padding:0 16px">+ Evento</button>' : ''}</div>`;
+  if (E.length) h += secH('Eventos · ' + E.length) + E.map(e => `<div class="ev"><span class="evt">${fmtEv(e)}</span><span class="nm">${esc(e.t)}</span>${e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener" aria-label="Abrir en Google Calendar">↗</a>` : ''}</div>`).join('');
+  if (T.length) h += secH('Tareas · ' + T.length) + T.map(t => taskRow(t, { snz: day <= td })).join('');
+  if (Dn.length) h += secH('Hechas · ' + Dn.length) + Dn.map(t => taskRow(t)).join('');
+  if (!E.length && !T.length && !Dn.length) h += '<p class="mut small hint">No hay nada en este día.</p>';
+  return h + '</section>';
+}
+async function loadMonth(force) {
+  if (!GCal.enabled() || !GCal.valid()) return;
+  const m = calMonth(), g = calGrid(m);
+  if (!force && mEv && mEv.key === m && now() - mEv.at < 120000) return;
+  try { const items = await GCal.list(pYmd(g[0]).getTime(), pYmd(addD(g[g.length - 1], 1)).getTime()); mEv = { key: m, at: now(), items }; evErr = ''; }
+  catch (e) { evErr = e.message; }
+  if (view === 'agenda' && !sheet && !dragging) paint();
+}
+const calGo = m => { calM = m; calSel = m === mkey(today()) ? today() : m + '-01'; paint(); loadMonth(); };
+
 function vTasks() {
   return `<div class="bar"><h1>Proyectos</h1>${syncBadge()}</div>
-<div class="seg three" role="group" aria-label="Ver"><button data-a="tf" data-f="proj" aria-pressed="${tfilter === 'proj'}">Proyectos</button><button data-a="tf" data-f="open" aria-pressed="${tfilter === 'open'}">Tareas</button><button data-a="tf" data-f="done" aria-pressed="${tfilter === 'done'}">Hecho</button></div>
+<div class="seg four" role="group" aria-label="Ver"><button data-a="tf" data-f="proj" aria-pressed="${tfilter === 'proj'}">Proyectos</button><button data-a="tf" data-f="open" aria-pressed="${tfilter === 'open'}">Tareas</button><button data-a="tf" data-f="done" aria-pressed="${tfilter === 'done'}">Hecho</button><button data-a="tf" data-f="dash" aria-pressed="${tfilter === 'dash'}">Resumen</button></div>
 ${tfilter === 'open' ? capForm('Nueva tarea… (ej: llamar al dentista mañana 18:30)', 'tf-form', 'ti', '', 'Crear', 'Crear tarea') : ''}
 <div id="body"></div>`;
 }
@@ -328,6 +408,7 @@ function bodyTasks() {
     return `<div id="cards" data-sort="projects">${h}</div><button class="btn newbtn" data-a="newproj">+ Nuevo proyecto</button>`;
   }
   if (tfilter === 'done') return bodyHistory();
+  if (tfilter === 'dash') return bodyDash();
   const td = today(), O = openT().sort(cmp);
   const groups = [['Atrasadas', t => t.d && t.d < td], ['Hoy', t => t.d === td], ['Mañana', t => t.d === addD(td, 1)], ['Esta semana', t => t.d > addD(td, 1) && t.d <= addD(td, 7)], ['Más adelante', t => t.d > addD(td, 7)], ['Sin fecha', t => !t.d]];
   let h = '';
@@ -363,8 +444,8 @@ function bodyInbox() {
 function vLists() { return `<div class="bar"><h1>Mis listas</h1>${syncBadge()}</div><div id="body"></div>`; }
 function bodyLists() {
   const L2 = lists();
-  let h = L2.length ? '<div id="cards">' + L2.map(l => { const it = itemsOf(l), d = it.filter(i => i.d).length;
-    return `<button class="card" data-a="olist" data-id="${esc(l.id)}"><b>${nm(l)}</b><small>${it.length ? `${it.length - d} pendientes · ${d} ${KINDS[l.k].done.toLowerCase()}s`.replace('hechos', 'hechos') : 'Vacía'}</small><div class="pbar" aria-hidden="true"><i style="width:${it.length ? Math.round(d / it.length * 100) : 0}%"></i></div></button>`; }).join('') + '</div>'
+  let h = L2.length ? '<div id="cards" data-sort="lists">' + L2.map(l => { const it = itemsOf(l), d = it.filter(i => i.d).length;
+    return `<div class="card pc" data-id="${esc(l.id)}"><button class="pmain" data-a="olist" data-id="${esc(l.id)}"><b>${nm(l)}</b><small>${it.length ? `${it.length - d} pendientes · ${d} ${KINDS[l.k].done.toLowerCase()}s`.replace('hechos', 'hechos') : 'Vacía'}</small><div class="pbar" aria-hidden="true"><i style="width:${it.length ? Math.round(d / it.length * 100) : 0}%"></i></div></button>${gripBtn('Reordenar ' + l.n)}</div>`; }).join('') + '</div>'
     : '<div class="empty"><div class="big" aria-hidden="true">📋</div><h2>Todavía no tenés listas</h2><p class="mut">Deseos, cursos, libros, lugares… o las que inventes.</p></div>';
   return h + '<button class="btn newbtn" data-a="newlist">+ Nueva lista</button>';
 }
@@ -373,10 +454,10 @@ function vList() {
 }
 function bodyList() {
   const l = curList(); if (!l) return '';
-  const it = itemsOf(l), p = it.filter(i => !i.d).sort((a, b) => b.c - a.c), d = it.filter(i => i.d).sort((a, b) => b.dn - a.dn);
+  const it = itemsOf(l), p = it.filter(i => !i.d).sort((a, b) => (!a.o - !b.o) * -1 || (a.o && b.o ? a.o - b.o : b.c - a.c)), d = it.filter(i => i.d).sort((a, b) => b.dn - a.dn);
   $('#lt').innerHTML = nm(l); $('#ls').textContent = !it.length ? 'Lista vacía' : `${p.length} pendientes`;
-  const row = i => `<div class="it${i.d ? ' done' : ''}"><button class="chk" data-a="itg" data-id="${esc(i.id)}" aria-pressed="${i.d}" aria-label="${i.d ? 'Reabrir' : KINDS[l.k].done} ${esc(i.n)}"><span class="box" aria-hidden="true"></span></button><button class="main" data-a="ied" data-id="${esc(i.id)}"><span class="nm">${esc(i.n)}</span>${i.no ? `<span class="meta"><span class="mt">${esc(i.no)}</span></span>` : ''}</button></div>`;
-  let h = !it.length ? '<div class="empty"><div class="big" aria-hidden="true">📝</div><p class="mut">Escribí arriba lo que quieras guardar.<br>Podés poner varios separados por punto y coma.</p></div>' : p.map(row).join('');
+  const row = i => `<div class="it${i.d ? ' done' : ''}" data-id="${esc(i.id)}"><button class="chk" data-a="itg" data-id="${esc(i.id)}" aria-pressed="${i.d}" aria-label="${i.d ? 'Reabrir' : KINDS[l.k].done} ${esc(i.n)}"><span class="box" aria-hidden="true"></span></button><button class="main" data-a="ied" data-id="${esc(i.id)}"><span class="nm">${esc(i.n)}</span>${i.no ? `<span class="meta"><span class="mt">${esc(i.no)}</span></span>` : ''}</button>${i.d ? '' : gripBtn('Reordenar ' + i.n)}</div>`;
+  let h = !it.length ? '<div class="empty"><div class="big" aria-hidden="true">📝</div><p class="mut">Escribí arriba lo que quieras guardar.<br>Podés poner varios separados por punto y coma.</p></div>' : (p.length ? `<div data-sort="items">${p.map(row).join('')}</div>` : '');
   if (d.length) h += secH(`${KINDS[l.k].done}s · ${d.length}`) + d.map(row).join('');
   return h;
 }
@@ -396,7 +477,7 @@ function bodyProject() {
 function vAgenda() { return `<div class="bar"><h1>Agenda</h1>${syncBadge()}</div><div id="body"></div>`; }
 function bodyAgenda() {
   const on = GCal.enabled(), valid = GCal.valid();
-  let h = '';
+  let h = calHtml();
   if (!on) h += '<div class="card note"><b>📅 Google Calendar sin configurar</b><small>Falta el ID de cliente de Google en config.js (la guía del README lo explica). Mientras tanto, acá ves tus tareas con fecha.</small></div>';
   else if (!valid) h += `<div class="card note"><b>📅 ${GCal.linked() ? 'Volvé a conectar Google Calendar' : 'Conectá Google Calendar'}</b><small>Vas a ver tus eventos y vas a poder crear bloques de tiempo desde acá.</small><button class="btn" data-a="gconn" style="margin-top:12px" ${evBusy ? 'disabled' : ''}>${evBusy ? 'Conectando…' : GCal.linked() ? 'Reconectar' : 'Conectar con Google'}</button></div>`;
   else h += `<div class="actrow"><button class="btn" data-a="newev">+ Bloque de tiempo o evento</button><button class="btn ghost" data-a="evref" aria-label="Actualizar eventos">↻</button></div>`;
@@ -404,6 +485,7 @@ function bodyAgenda() {
   const td = today(), days = Array.from({ length: 7 }, (_, i) => addD(td, i));
   const evs = (L.events && valid ? L.events.items : []);
   let any = false;
+  h += '<h3 class="nxt">Próximos 7 días</h3>';
   for (const day of days) {
     const a = pYmd(day).getTime(), b = pYmd(addD(day, 1)).getTime();
     const E = evs.filter(e => e.s < b && e.e > a).sort((x, y) => x.s - y.s);
@@ -420,6 +502,7 @@ function bodyAgenda() {
 }
 async function loadEvents(force) {
   if (!GCal.enabled() || !GCal.valid()) return;
+  if (view === 'agenda') loadMonth(force);
   if (!force && L.events && now() - L.events.at < 120000) return;
   evErr = '';
   try {
@@ -470,7 +553,7 @@ function paint() {
   if (view === 'today') { const h = $('#hi'); if (h) h.textContent = D().name ? `Hola ${D().name} 👋` : 'Hola 👋'; }
   paintNav();
 }
-function go(v) { view = v; sheet = null; render(); window.scrollTo(0, 0); if (v === 'agenda' || v === 'today') loadEvents(); }
+function go(v) { view = v; sheet = null; if (v === 'agenda') { calM = ''; calSel = ''; } render(); window.scrollTo(0, 0); if (v === 'agenda' || v === 'today') loadEvents(); }
 function render() {
   $('#v').innerHTML = SHELL[view]();
   const nav = view !== 'auth';
@@ -631,7 +714,7 @@ async function blockTime(x) {
   const [h, m] = t.tm.split(':').map(Number), s = pYmd(t.d); s.setHours(h, m, 0, 0);
   try {
     const r = await GCal.insert({ title: t.t, notes: t.n, startMs: s.getTime(), endMs: s.getTime() + (x.dur || 60) * 60000 });
-    t.ev = r.id; t.evl = /^https:\/\//.test(r.link) ? r.link : ''; t.u = now(); touch(); L.events = null;
+    t.ev = r.id; t.evl = /^https:\/\//.test(r.link) ? r.link : ''; t.u = now(); touch(); L.events = null; mEv = null;
     closeSheet(); paint(); toast('Bloque creado en Google Calendar 📅');
   } catch (e) { toast(e.message); }
 }
@@ -660,7 +743,7 @@ async function createEvent() {
     if (!GCal.valid()) await GCal.connect();
     const [h, m] = x.tm.split(':').map(Number), st0 = pYmd(x.d); st0.setHours(h, m, 0, 0);
     await GCal.insert({ title: x.t, startMs: st0.getTime(), endMs: st0.getTime() + x.dur * 60000 });
-    closeSheet(); L.events = null; await loadEvents(true); toast('Evento creado en Google Calendar 📅');
+    closeSheet(); L.events = null; mEv = null; await loadEvents(true); toast('Evento creado en Google Calendar 📅');
   } catch (e) { s.busy = false; s.err = e.message; renderSheet(); }
 }
 
@@ -856,7 +939,13 @@ const A = {
   parch() { const p = curProj(); if (p) { p.ar = true; p.u = now(); touch(); closeSheet(); tfilter = 'proj'; go('tasks'); toast('Proyecto archivado'); } },
   pdel() { const p = curProj(); if (p) ask(`¿Eliminar “${p.n}”?`, 'Sus tareas no se borran: quedan sin proyecto.', 'Sí, eliminar', () => { p.del = true; p.u = now(); top().filter(t => t.pr === p.id).forEach(t => { t.pr = ''; t.u = now(); }); touch(); tfilter = 'proj'; go('tasks'); }); },
   editname() { openSheet({ t: 'name' }); },
-  newev() { openSheet({ t: 'event', draft: { t: '', d: today(), tm: '', dur: 60 } }); },
+  newev() { openSheet({ t: 'event', draft: { t: '', d: view === 'agenda' ? calDay() : today(), tm: '', dur: 60 } }); },
+  cday(b) { calSel = b.dataset.d; if (mkey(calSel) !== calMonth()) { calM = mkey(calSel); } paint(); loadMonth(); const e = $('#dayp'); if (e) e.scrollIntoView({ block: 'start', behavior: 'smooth' }); },
+  cprev() { const [y, m] = calMonth().split('-').map(Number); const d = new Date(y, m - 2, 1); calGo(`${d.getFullYear()}-${pad(d.getMonth() + 1)}`); },
+  cnext() { const [y, m] = calMonth().split('-').map(Number); const d = new Date(y, m, 1); calGo(`${d.getFullYear()}-${pad(d.getMonth() + 1)}`); },
+  ctoday() { calGo(mkey(today())); },
+  dnew() { openTask(null, { d: calDay() }); },
+  dmon(b) { dashM = b.dataset.m === dashM ? '' : b.dataset.m; paint(); },
   evref() { loadEvents(true).then(() => toast('Agenda actualizada')); },
   gconn() { gconnect(); },
   gdisc() { ask('¿Desconectar Google Calendar?', 'Tus eventos no se borran; solo dejás de verlos en Foco.', 'Desconectar', () => { GCal.disconnect(); L.events = null; saveL(); render(); toast('Desconectado'); }); },
@@ -922,10 +1011,10 @@ document.addEventListener('keydown', e => {
 
 /* ---------- Reordenar (arrastrar con el agarre ⋮⋮, o con las flechas ↑ ↓ del teclado) ---------- */
 function reorder(kind, ids) {
-  const map = kind === 'projects' ? D().projects : D().tasks, t = now();
+  const map = kind === 'projects' ? D().projects : kind === 'lists' ? D().lists : kind === 'items' ? ((curList() || {}).items || {}) : D().tasks, t = now();
   let ch = false;
   ids.forEach((id, i) => { const e = map[id]; if (e && e.o !== i + 1) { e.o = i + 1; e.u = t; ch = true; } });
-  if (ch) touch();
+  if (ch) { if (kind === 'items' && curList()) curList().u = t; touch(); }
   paint();
 }
 const itemsIn = c => [...c.children].filter(x => x.dataset.id);

@@ -76,14 +76,14 @@ function fixItem(r, id) {
   const del = !!r.del, n = str(r.n, 200).trim();
   if (!n && !del) return null;
   const d = !!r.d, u = num(r.u);
-  return { id, n, no: del ? '' : str(r.no, 1000), d, dn: d ? (num(r.dn) || u) : 0, c: num(r.c), u, del };
+  return { id, n, no: del ? '' : str(r.no, 1000), d, dn: d ? (num(r.dn) || u) : 0, o: ordN(r.o), c: num(r.c), u, del };
 }
 function fixList(r, id, now) {
   if (!isObj(r)) return null;
   const del = !!r.del;
   return {
     id, n: str(r.n, 80).trim() || 'Lista', e: firstEmoji(r.e), k: LIST_KINDS.includes(r.k) ? r.k : 'custom',
-    c: num(r.c), u: num(r.u), del, items: del ? {} : pruneMap(r.items, LIM.items, now, fixItem)
+    o: ordN(r.o), c: num(r.c), u: num(r.u), del, items: del ? {} : pruneMap(r.items, LIM.items, now, fixItem)
   };
 }
 

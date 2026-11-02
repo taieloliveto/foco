@@ -4,11 +4,16 @@
   --shadow:0 1px 2px rgba(23,22,43,.06),0 8px 24px rgba(60,50,150,.08);
   color-scheme:light dark;
 }
-@media(prefers-color-scheme:dark){:root{
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#0F1020;--card:#181A30;--fg:#EEEDFB;--mut:#9391B3;--line:#272A47;
   --acc:#8E83FF;--accf:#0F0A3A;--acc-soft:#26244F;--danger:#FF7A8C;--warn:#E7B04A;--coral:#FF8A6B;--ok:#4CD39A;
   --shadow:none;
 }}
+:root[data-theme=dark]{
+  --bg:#0F1020;--card:#181A30;--fg:#EEEDFB;--mut:#9391B3;--line:#272A47;
+  --acc:#8E83FF;--accf:#0F0A3A;--acc-soft:#26244F;--danger:#FF7A8C;--warn:#E7B04A;--coral:#FF8A6B;--ok:#4CD39A;
+  --shadow:none;
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);overscroll-behavior-y:none}
 body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--fg);font-size:1.0625rem;line-height:1.45;min-height:100dvh;display:flex;flex-direction:column}
@@ -32,7 +37,8 @@ body.nonav #v{padding-bottom:calc(32px + env(safe-area-inset-bottom,0px))}
 #nv{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;align-items:flex-end;gap:10px;padding:0 14px;z-index:5;pointer-events:none}
 #nv>*{pointer-events:auto}
 .pill{background:var(--card);background:color-mix(in srgb,var(--card) 90%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:999px;box-shadow:0 10px 30px rgba(40,30,120,.2)}
-@media(prefers-color-scheme:dark){.pill{box-shadow:0 10px 30px rgba(0,0,0,.5)}}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) .pill{box-shadow:0 10px 30px rgba(0,0,0,.5)}}
+:root[data-theme=dark] .pill{box-shadow:0 10px 30px rgba(0,0,0,.5)}
 nav.pill{display:flex;gap:2px;padding:5px}
 .nb{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:68px;min-height:54px;padding:0 10px;border:0;border-radius:999px;background:none;color:var(--mut);font-size:.72rem;font-weight:700}
 .nb svg{width:22px;height:22px;flex:none}
@@ -300,7 +306,8 @@ a.rowb{color:var(--acc);text-decoration:none;font-weight:600}
 
 /* Semáforo de prioridad */
 :root{--p1:#2FA866;--p2:#E8A317;--p3:#E5484D}
-@media(prefers-color-scheme:dark){:root{--p1:#4CD39D;--p2:#F2B84B;--p3:#FF7388}}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--p1:#4CD39D;--p2:#F2B84B;--p3:#FF7388}}
+:root[data-theme=dark]{--p1:#4CD39D;--p2:#F2B84B;--p3:#FF7388}
 .it{border-left:4px solid transparent}
 .it.pr1{border-left-color:var(--p1)}.it.pr2{border-left-color:var(--p2)}.it.pr3{border-left-color:var(--p3)}
 .chk.p1 .box{border-color:var(--p1)}.chk.p2 .box{border-color:var(--p2)}.chk.p3 .box{border-color:var(--p3);border-width:3px}
@@ -352,7 +359,8 @@ body:has(.ov){overflow:hidden}
 .cnts{display:flex;gap:6px;flex:none}
 .cnt{min-width:28px;height:28px;padding:0 9px;border-radius:99px;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:.88rem;color:#fff}
 .cnt.c3{background:var(--p3)}.cnt.c2{background:var(--p2);color:#2B1E00}.cnt.c1{background:var(--p1)}.cnt.c0{background:var(--line);color:var(--fg)}
-@media(prefers-color-scheme:dark){.cnt.c3,.cnt.c1{color:#10102A}}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) .cnt.c3,:root:not([data-theme=light]) .cnt.c1{color:#10102A}}
+:root[data-theme=dark] .cnt.c3,:root[data-theme=dark] .cnt.c1{color:#10102A}
 .pbody{padding:0 8px 6px 4px;border-top:1px solid var(--line)}
 .pbody .it:last-child{border-bottom:0}
 /* Reordenar */
@@ -477,3 +485,9 @@ body.inonb{overflow:hidden}
 .chk{width:38px}
 .sec{margin-top:24px}
 .kpis,.chart,.cal{width:100%}
+
+/* Selector de tema (Ajustes) */
+.themesel{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:6px;border-radius:16px;background:var(--line);margin:6px 0 10px}
+.themesel button{display:flex;flex-direction:column;align-items:center;gap:4px;min-height:66px;padding:8px 6px;border:0;border-radius:12px;background:none;color:var(--mut);font-weight:600;font-size:.88rem}
+.themesel button svg{width:22px;height:22px}
+.themesel button[aria-pressed=true]{background:var(--card);color:var(--fg);box-shadow:var(--shadow)}

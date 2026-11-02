@@ -627,6 +627,27 @@ await step('sincronización: otro dispositivo ve todo', async () => {
   await B.page.locator('.it').filter({ hasText: 'Llamar al dentista' }).waitFor();
   await B.ctx.close();
 });
+await step('Ajustes: selector de tema (automático, claro, oscuro) y se recuerda', async () => {
+  await nav(p, 'Hoy'); await p.locator('[data-a=tab][data-t=set]').first().click();
+  const sel = p.locator('.themesel');
+  await sel.waitFor();
+  assert.equal(await sel.getByRole('button', { name: /Automático/ }).getAttribute('aria-pressed'), 'true');
+  const bg = () => p.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  const light = await bg();
+  await sel.getByRole('button', { name: /Oscuro/ }).click();
+  assert.equal(await p.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  const dark = await bg();
+  assert.notEqual(light, dark, 'el fondo cambia al forzar oscuro');
+  await p.reload();
+  await nav(p, 'Hoy'); await p.locator('[data-a=tab][data-t=set]').first().click();
+  assert.equal(await p.evaluate(() => document.documentElement.dataset.theme), 'dark', 'se recuerda tras recargar');
+  await p.screenshot({ path: join(SHOTS, '18-tema-oscuro.png') });
+  await p.locator('.themesel').getByRole('button', { name: /Claro/ }).click();
+  assert.equal(await p.evaluate(() => document.documentElement.dataset.theme), 'light');
+  await p.locator('.themesel').getByRole('button', { name: /Automático/ }).click();
+  assert.equal(await p.evaluate(() => document.documentElement.dataset.theme || ''), '', 'automático quita el atributo');
+  await nav(p, 'Hoy');
+});
 await step('modo oscuro y sin desbordes horizontales', async () => {
   const D = await newDevice({ colorScheme: 'dark' });
   await D.page.goto(APP);

@@ -40,9 +40,22 @@ try {
 } catch (_) {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (_) {} };
 /* Preferencias de este dispositivo (no se sincronizan) */
-let L = { fired: {}, pushEp: '', pushErr: '', notif: false, events: null, open: {}, onb: 0 };
+let L = { fired: {}, pushEp: '', pushErr: '', notif: false, events: null, open: {}, onb: 0, theme: 'auto' };
 try { const r = JSON.parse(localStorage.getItem(LKEY) || 'null'); if (r && typeof r === 'object') L = { ...L, ...r }; } catch (_) {}
 const saveL = () => { try { localStorage.setItem(LKEY, JSON.stringify(L)); } catch (_) {} };
+/* Tema: 'auto' sigue al sistema, 'light' y 'dark' lo fuerzan. */
+const THEMES = ['auto', 'light', 'dark'];
+function applyTheme() {
+  const t = THEMES.includes(L.theme) ? L.theme : 'auto';
+  if (t === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+  const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  for (const m of document.querySelectorAll('meta[name=theme-color]')) m.remove();
+  const mt = document.createElement('meta'); mt.name = 'theme-color'; mt.content = dark ? '#0F1020' : '#F7F6FD';
+  document.head.append(mt);
+}
+applyTheme();
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if ((L.theme || 'auto') === 'auto') applyTheme(); }); } catch (_) {}
 
 let onb = -1;                     // paso de la introducción que se está viendo (-1 = cerrada)
 let view = 'auth', sheet = null, busy = false, st = 'ok', rev = 0, cur = '', curP = '';
@@ -526,6 +539,12 @@ ${pn.on ? '<div class="set-row"><span class="mut">Avisos</span><span>Activados</
 ${pn.canEnable ? `<button class="sb" data-a="pushon">${pn.retry ? 'Reintentar activar avisos' : 'Activar avisos de recordatorios'}</button>` : ''}
 ${pn.on ? '<button class="sb" data-a="pushtest">Enviar aviso de prueba</button><button class="sb" data-a="pushoff">Desactivar avisos</button>' : ''}
 ${GCal.enabled() ? `<h3>Google Calendar</h3><p class="mut small">${GCal.linked() ? 'Conectado.' : 'Sin conectar.'} Foco solo lee y crea eventos; nunca borra los tuyos.</p>${GCal.valid() || GCal.linked() ? '<button class="sb dng" data-a="gdisc">Desconectar Google Calendar</button>' : '<button class="sb" data-a="gconn">Conectar Google Calendar</button>'}` : ''}
+<h3>Apariencia</h3>
+<div class="themesel" role="group" aria-label="Apariencia">
+<button type="button" data-a="theme" data-v="auto" aria-pressed="${L.theme === 'auto' || !L.theme}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor"/></svg><span>Automático</span></button>
+<button type="button" data-a="theme" data-v="light" aria-pressed="${L.theme === 'light'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg><span>Claro</span></button>
+<button type="button" data-a="theme" data-v="dark" aria-pressed="${L.theme === 'dark'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 15.5A8 8 0 1 1 8.5 4a7 7 0 0 0 11.5 11.5Z"/></svg><span>Oscuro</span></button>
+</div>
 <h3>Instalar</h3>
 ${installEvt ? '<button class="sb" data-a="install">Instalar la app</button>' : '<p class="mut small">En Android: menú del navegador → <i>Instalar app</i>. En iPhone: Safari → Compartir → <i>Agregar a inicio</i> (necesario para recibir avisos).</p>'}
 <h3>Datos</h3>
@@ -893,6 +912,7 @@ const A = {
   oback() { if (onb > 0) { onb--; paintOnb(); } },
   oskip() { closeOnb(); },
   onbshow() { onb = 0; obKey = ''; paintOnb(); },
+  theme(b) { L.theme = THEMES.includes(b.dataset.v) ? b.dataset.v : 'auto'; saveL(); applyTheme(); if (view === 'set') render(); },
   pset(b) { readDraft(); sheet.draft.p = +b.dataset.p; renderSheet(); },
   subadd() {
     readDraft(); const v = ($('#ns') || {}).value?.trim(); if (!v) return;

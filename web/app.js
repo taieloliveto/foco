@@ -102,6 +102,7 @@ async function api(path, opts = {}) {
   if (!r.ok) throw new ApiErr((b && b.error) || 'Error del servidor', r.status);
   return b;
 }
+GCal.useServer((path, opts) => S.token ? api(path, opts) : Promise.reject(new ApiErr('No autenticado', 401)));
 
 /* ---------- Sincronización ---------- */
 let syncing = false, again = false, syncT = null;
@@ -837,7 +838,7 @@ function checkDue() {
 }
 
 /* ---------- Acciones de cuenta ---------- */
-function wipeLocal(keepEmail) { S = { email: keepEmail ? S.email : '', token: '', server: S.server, data: emptyState(), dirty: false }; cur = ''; curP = ''; L.events = null; L.pushEp = ''; save(); saveL(); GCal.disconnect(); }
+function wipeLocal(keepEmail) { S = { email: keepEmail ? S.email : '', token: '', server: S.server, data: emptyState(), dirty: false }; cur = ''; curP = ''; L.events = null; L.pushEp = ''; save(); saveL(); GCal.disconnect(true); }
 async function doAuth() {
   if (busy) return;
   const em = authEmail.trim().toLowerCase(), pw = authPass;
@@ -1102,6 +1103,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 function startup2() {
   checkDue(); loadEvents();
+  GCal.probe().then(ok => { if (ok) { if (view === 'set') render(); else loadEvents(true); } });
   if (L.notif && 'Notification' in window && Notification.permission === 'granted') subscribePush(true).then(() => { if (view === 'set') render(); }).catch(() => {});
 }
 if (S.token) {

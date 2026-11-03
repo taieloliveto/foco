@@ -22,7 +22,16 @@ const store = new Map();
 const vk = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
 const vpub = b64u(await crypto.subtle.exportKey('raw', vk.publicKey)), vpriv = (await crypto.subtle.exportKey('jwk', vk.privateKey)).d;
 const pushed = [];
-const env = { SERVER_SECRET: 'e2e-secret-largo-largo', VAPID_PUBLIC: vpub, VAPID_PRIVATE: vpriv, __fetch: async (u, i) => { pushed.push(u); return { status: 201 }; },
+// Google falso del lado del servidor: canje del código y renovación de la llave
+const gTok = { n: 0 };
+const fakeGoogle = (u, i) => {
+  if (u.endsWith('/revoke')) return { status: 200, json: async () => ({}) };
+  const q = new URLSearchParams(i.body);
+  if (q.get('grant_type') === 'authorization_code') return { status: 200, json: async () => ({ access_token: 'tok-test', expires_in: 3600, refresh_token: 'rt-e2e' }) };
+  gTok.n++; return { status: 200, json: async () => ({ access_token: 'tok-renovado', expires_in: 3600 }) };
+};
+const env = { SERVER_SECRET: 'e2e-secret-largo-largo', VAPID_PUBLIC: vpub, VAPID_PRIVATE: vpriv, GOOGLE_CLIENT_SECRET: 'e2e-google',
+  __fetch: async (u, i) => { if (/^https:\/\/oauth2\.googleapis\.com\//.test(u)) return fakeGoogle(u, i); pushed.push(u); return { status: 201 }; },
   KV: { get: async k => store.get(k) ?? null, put: async (k, v) => { store.set(k, v); }, delete: async k => { store.delete(k); }, list: async ({ prefix }) => ({ keys: [...store.keys()].filter(k => k.startsWith(prefix)).map(name => ({ name })), list_complete: true }) } };
 const api = http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);
@@ -63,7 +72,7 @@ const step = async (name, fn) => { try { await fn(); n++; console.log('  ✓', n
 const gcalPosts = [];
 const soon = new Date(Date.now() + 60000);
 const GEVENTS = [{ id: 'g1', summary: 'Reunión con Pedro', status: 'confirmed', htmlLink: 'https://calendar.google.com/e/g1', start: { dateTime: soon.toISOString() }, end: { dateTime: new Date(soon.getTime() + 3600000).toISOString() } }];
-const FAKE_GSI = `window.google={accounts:{oauth2:{initTokenClient:c=>({requestAccessToken:()=>setTimeout(()=>c.callback({access_token:'tok-test',expires_in:3600}),30)}),revoke:(t,cb)=>cb&&cb()}}};`;
+const FAKE_GSI = `window.google={accounts:{oauth2:{initCodeClient:c=>({requestCode:()=>setTimeout(()=>c.callback({code:'cod-e2e'}),30)}),initTokenClient:c=>({requestAccessToken:()=>setTimeout(()=>c.callback({access_token:'tok-test',expires_in:3600}),30)}),revoke:(t,cb)=>cb&&cb()}}};`;
 // Push falso: Chromium sin conexión a FCM no puede suscribirse
 const FAKE_PUSH = `(()=>{const sub={endpoint:'https://push.example.com/send/e2e',toJSON(){return{endpoint:this.endpoint,keys:{p256dh:'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4',auth:'BTBZMqHH6r4Tts7J_aSIgg'}}},unsubscribe:async()=>{window.__subbed=false;return true}};
 const pm={getSubscription:async()=>window.__subbed?sub:null,subscribe:async()=>{window.__subbed=true;return sub}};
@@ -467,6 +476,17 @@ await step('Agenda: conectar Google Calendar, ver eventos y tareas con fecha', a
   await p.locator('.dayh').filter({ hasText: 'Mañana' }).waitFor();
   await p.locator('.it').filter({ hasText: 'Llamar al dentista' }).waitFor();
   await shot(p, '12-agenda');
+});
+await step('Google Calendar queda conectado: con la llave vencida se renueva sola', async () => {
+  assert.ok(store.has('gcal:' + [...store.keys()].find(k => k.startsWith('gcal:')).slice(5)));
+  const before = gTok.n;
+  await p.evaluate(() => { const g = JSON.parse(localStorage.getItem('foco.g')); g.exp = Date.now() - 1000; localStorage.setItem('foco.g', JSON.stringify(g)); });
+  await p.reload();
+  await nav(p, 'Agenda');
+  await p.locator('.ev').filter({ hasText: 'Reunión con Pedro' }).first().waitFor();
+  assert.equal(await p.getByRole('button', { name: /Reconectar|Conectar con Google/ }).count(), 0);
+  assert.ok(gTok.n > before);
+  assert.equal(JSON.parse(await p.evaluate(() => localStorage.getItem('foco.g'))).tok, 'tok-renovado');
 });
 await step('Hoy muestra los próximos eventos de Google', async () => {
   await nav(p, 'Hoy');

@@ -128,6 +128,22 @@ function reminderBody(t) {
   return t.n ? t.n.slice(0, 120) : when || 'Es hora de hacerlo.';
 }
 
+
+/* ---------- Google Calendar: el servidor guarda el permiso permanente (refresh token) y entrega llaves de 1 hora ---------- */
+const GTOKEN = 'https://oauth2.googleapis.com/token';
+class GAuthErr extends Error {}
+async function gTokenCall(env, params) {
+  const F = env.__fetch || fetch;
+  const r = await F(GTOKEN, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params).toString() });
+  let b = {}; try { b = await r.json(); } catch (_) {}
+  if (r.status >= 400) {
+    if (b.error === 'invalid_grant' || b.error === 'unauthorized_client' || b.error === 'invalid_client') throw new GAuthErr(b.error);
+    throw new Error('google ' + r.status);
+  }
+  return b;
+}
+const gOk = b => ({ access_token: b.access_token, expires_in: +b.expires_in || 3600 });
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default {
@@ -146,7 +162,7 @@ export default {
 
     try {
       if (url.pathname === '/health') return j({ ok: true });
-      if (url.pathname === '/config') return j({ vapid: env.VAPID_PUBLIC && env.VAPID_PRIVATE ? env.VAPID_PUBLIC : '' });
+      if (url.pathname === '/config') return j({ vapid: env.VAPID_PUBLIC && env.VAPID_PRIVATE ? env.VAPID_PUBLIC : '', gcal: !!env.GOOGLE_CLIENT_SECRET });
 
       if (url.pathname === '/signup' && req.method === 'POST') {
         const { email, password } = await req.json();
@@ -247,9 +263,49 @@ export default {
         return j({ sent, results, lastError: u.pushErr || null });
       }
 
+      // Google Calendar: la app manda el código que dio Google; el servidor lo canjea y guarda el permiso.
+      if (url.pathname === '/gcal/connect' && req.method === 'POST') {
+        if (!email) return j({ error: 'No autenticado' }, 401);
+        if (!env.GOOGLE_CLIENT_SECRET) return j({ error: 'El servidor no tiene Google Calendar configurado' }, 501);
+        const { code, cid } = await req.json();
+        if (typeof code !== 'string' || !code || code.length > 2000 || typeof cid !== 'string' || !/^[\w.-]{10,200}$/.test(cid)) return j({ error: 'Datos inválidos' }, 400);
+        let b;
+        try { b = await gTokenCall(env, { code, client_id: cid, client_secret: env.GOOGLE_CLIENT_SECRET, redirect_uri: 'postmessage', grant_type: 'authorization_code' }); }
+        catch (e) { return j({ error: e instanceof GAuthErr ? 'Google rechazó el permiso. Probá de nuevo.' : 'No se pudo hablar con Google' }, 502); }
+        const prev = JSON.parse((await env.KV.get('gcal:' + email)) || 'null');
+        const rt = b.refresh_token || (prev && prev.cid === cid ? prev.rt : '');
+        if (!rt) return j({ error: 'Google no dio el permiso permanente. Sacá a Foco de myaccount.google.com/permissions y conectá de nuevo.' }, 400);
+        if (!prev || prev.rt !== rt) await env.KV.put('gcal:' + email, JSON.stringify({ rt, cid, at: Date.now() }));
+        return j(gOk(b));
+      }
+
+      // Llave nueva de 1 hora a partir del permiso guardado (la app la pide sola cuando se vence). Sin permiso: { relink: true }.
+      if (url.pathname === '/gcal/token' && req.method === 'POST') {
+        if (!email) return j({ error: 'No autenticado' }, 401);
+        const g = JSON.parse((await env.KV.get('gcal:' + email)) || 'null');
+        if (!g || !env.GOOGLE_CLIENT_SECRET) return j({ relink: true });
+        try { return j(gOk(await gTokenCall(env, { refresh_token: g.rt, client_id: g.cid, client_secret: env.GOOGLE_CLIENT_SECRET, grant_type: 'refresh_token' }))); }
+        catch (e) {
+          if (!(e instanceof GAuthErr)) return j({ error: 'No se pudo hablar con Google' }, 502);
+          await env.KV.delete('gcal:' + email);              // el permiso se revocó o venció: hay que reconectar
+          return j({ relink: true });
+        }
+      }
+
+      if (url.pathname === '/gcal/disconnect' && req.method === 'POST') {
+        if (!email) return j({ error: 'No autenticado' }, 401);
+        const g = JSON.parse((await env.KV.get('gcal:' + email)) || 'null');
+        if (g) {
+          try { await (env.__fetch || fetch)('https://oauth2.googleapis.com/revoke', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'token=' + encodeURIComponent(g.rt) }); } catch (_) {}
+          await env.KV.delete('gcal:' + email);
+        }
+        return j({ ok: true });
+      }
+
       if (url.pathname === '/account' && req.method === 'DELETE') {
         if (!email) return j({ error: 'No autenticado' }, 401);
         await env.KV.delete('user:' + email);
+        await env.KV.delete('gcal:' + email);
         return j({ ok: true });
       }
 

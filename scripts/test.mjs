@@ -207,8 +207,48 @@ await ok('rechaza cuerpos enormes', async () => {
   const big = { tasks: {} }; for (let i = 0; i < 4000; i++) big.tasks['t' + i] = tk('t' + i, 'x'.repeat(200), T);
   assert.equal((await call('PUT', '/data', { data: big }, token)).status, 413);
 });
+await ok('Google Calendar: conecta una vez, renueva la llave sola y se puede desconectar', async () => {
+  const calls = [], prev = env.__fetch;
+  let grant = 'ok';
+  env.__fetch = async (u, i) => {
+    calls.push({ u, body: String(i.body || '') });
+    const res = (st, b) => ({ status: st, json: async () => b });
+    if (u.endsWith('/revoke')) return res(200, {});
+    const q = new URLSearchParams(i.body);
+    if (q.get('client_secret') !== 'sec-google') return res(401, { error: 'invalid_client' });
+    if (q.get('grant_type') === 'authorization_code') return q.get('code') === 'cod-1' ? res(200, { access_token: 'at-1', expires_in: 3599, refresh_token: 'rt-1' }) : res(400, { error: 'invalid_grant' });
+    if (grant !== 'ok') return res(400, { error: 'invalid_grant' });
+    return q.get('refresh_token') === 'rt-1' ? res(200, { access_token: 'at-2', expires_in: 3599 }) : res(400, { error: 'invalid_grant' });
+  };
+  try {
+    const cid = 'cliente-123.apps.googleusercontent.com';
+    assert.equal((await call('GET', '/config')).body.gcal, false);
+    assert.equal((await call('POST', '/gcal/connect', { code: 'cod-1', cid }, token)).status, 501);    // sin secreto configurado
+    env.GOOGLE_CLIENT_SECRET = 'sec-google';
+    assert.equal((await call('GET', '/config')).body.gcal, true);
+    assert.equal((await call('POST', '/gcal/connect', { code: 'cod-1', cid })).status, 401);           // sin sesión
+    assert.equal((await call('POST', '/gcal/token', {}, token)).body.relink, true);                     // todavía sin conectar
+    assert.equal((await call('POST', '/gcal/connect', { code: 'malo', cid }, token)).status, 502);
+    const c = await call('POST', '/gcal/connect', { code: 'cod-1', cid }, token);
+    assert.equal(c.status, 200); assert.equal(c.body.access_token, 'at-1');
+    assert.deepEqual(JSON.parse(store.get('gcal:ana@mail.com')).rt, 'rt-1');
+    assert.ok(!store.get('user:ana@mail.com').includes('rt-1'));                                      // el permiso no viaja con los datos
+    const r = await call('POST', '/gcal/token', {}, token);
+    assert.equal(r.status, 200); assert.equal(r.body.access_token, 'at-2'); assert.equal(r.body.expires_in, 3599);
+    grant = 'revocado';                                                                                 // el usuario sacó el permiso en Google
+    const r2 = await call('POST', '/gcal/token', {}, token);
+    assert.equal(r2.status, 200); assert.equal(r2.body.relink, true); assert.equal(store.get('gcal:ana@mail.com'), undefined);
+    grant = 'ok';
+    await call('POST', '/gcal/connect', { code: 'cod-1', cid }, token);
+    assert.equal((await call('POST', '/gcal/disconnect', {}, token)).status, 200);
+    assert.equal(store.get('gcal:ana@mail.com'), undefined);
+    assert.ok(calls.some(x => x.u.endsWith('/revoke') && x.body.includes('rt-1')));
+    await call('POST', '/gcal/connect', { code: 'cod-1', cid }, token);                                 // queda conectado para probar el borrado de cuenta
+  } finally { env.__fetch = prev; }
+});
 await ok('borrar la cuenta', async () => {
   assert.equal((await call('DELETE', '/account', null, token)).status, 200);
   assert.equal((await call('GET', '/data', null, token)).status, 401);
+  assert.equal(store.get('gcal:ana@mail.com'), undefined);
 });
 console.log(`\n${n} pruebas OK`);

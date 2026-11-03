@@ -50,7 +50,7 @@ Nuevo proyecto en Vercel desde el repositorio, con **Root Directory = `web`** y 
 
 ### 3) Google Calendar (opcional, 5–10 min, una vez)
 
-La app pide permiso a Google desde el navegador; no hay servidor de por medio. Necesita un "ID de cliente" propio y gratuito:
+Google pide permiso desde el navegador. Necesita un "ID de cliente" propio y gratuito:
 
 1. Entrá a [console.cloud.google.com](https://console.cloud.google.com) → **Nuevo proyecto** (nombre: Foco).
 2. **APIs y servicios → Biblioteca** → buscá **Google Calendar API** → **Habilitar**.
@@ -59,7 +59,12 @@ La app pide permiso a Google desde el navegador; no hay servidor de por medio. N
 5. Copiá el **ID de cliente** (termina en `.apps.googleusercontent.com`) y pegalo en `web/config.js` → `GOOGLE_CLIENT_ID`. Volvé a publicar.
 6. En la app: **Agenda → Conectar con Google**. Aparecerá "Google no verificó esta aplicación": **Configuración avanzada → Ir a Foco** (es tu propia app, en modo de prueba).
 
-Notas: Google entrega una llave que dura ~1 hora; pasado ese tiempo la Agenda te pide "Actualizar" con un toque. En iPhone, la ventana de Google dentro de la app instalada puede comportarse distinto: si no abre, conectá una vez desde Safari.
+**Para que quede conectado siempre** (recomendado): el servidor guarda el permiso y renueva la llave sola.
+- En la consola de Google, en tu ID de cliente, copiá el **Secreto del cliente** y cargalo en el servidor: `cd server && npx wrangler secret put GOOGLE_CLIENT_SECRET`, y después `npx wrangler deploy`.
+- En **Público** tocá **Publicar app** (pasa de "Prueba" a "En producción"). En modo de prueba Google corta el permiso a los 7 días. No hace falta verificar la app: seguís viendo el aviso de "app no verificada" al conectar.
+- En la app: **Ajustes → Desconectar Google Calendar** y volvé a conectar una vez. Los otros dispositivos con tu cuenta toman la conexión solos.
+
+Sin el secreto en el servidor, Google entrega una llave que dura ~1 hora y después la Agenda te pide reconectar. En iPhone, la ventana de Google dentro de la app instalada puede comportarse distinto: si no abre, conectá una vez desde Safari.
 
 ### 4) Avisos en el celular
 
@@ -81,4 +86,4 @@ Lo que **no** se puede probar sin cuentas reales: el consentimiento de Google y 
 
 ## Privacidad
 
-Contraseñas con PBKDF2 (100.000 iteraciones). Sesiones de 60 días. La llave de Google queda solo en tu navegador. Para el contacto técnico de los avisos se usa el email que escribas en `setup-server.sh`, no el de las cuentas. *Ajustes → Exportar* descarga todo en JSON; *Eliminar mi cuenta* borra todo.
+Contraseñas con PBKDF2 (100.000 iteraciones). Sesiones de 60 días. El permiso de Google (refresh token) se guarda en el servidor, aparte de tus datos, y se borra al desconectar Calendar o eliminar la cuenta. Para el contacto técnico de los avisos se usa el email que escribas en `setup-server.sh`, no el de las cuentas. *Ajustes → Exportar* descarga todo en JSON; *Eliminar mi cuenta* borra todo.
